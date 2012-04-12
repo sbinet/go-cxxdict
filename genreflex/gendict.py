@@ -8,11 +8,112 @@
 
 import xml.parsers.expat
 import os, sys, string, time, re
+try:
+  from cStringIO import StringIO
+except ImportError:
+  from io import StringIO
+  pass
+from textwrap import dedent
+
 import gccdemangler
 
+_cxx2go_typemap = {
+  'void':      '',
+  'uint64_t' : 'uint64',
+  'uint32_t' : 'uint32',
+  'uint16_t' : 'uint16',
+  'uint8_t'  : 'uint8',
+  'uint_t'   : 'uint',
+  'int64_t'  : 'int64',
+  'int32_t'  : 'int32',
+  'int16_t'  : 'int16',
+  'int8_t'   : 'int8',
+  'int'      : 'int',
+  'bool'     : 'bool',
+  'char':      'byte',
+  'signed char': 'int8',
+  'unsigned char': 'byte',
+  'short':         'int16',
+  'unsigned short': 'uint16',
+  'int':            'int',
+  'unsigned int':   'uint',
+
+  # FIXME: 32/64 platforms... (and cross-compilation)
+  #'long':           'int32',
+  #'unsigned long':  'uint32',
+  'long':           'int64',
+  'unsigned long':  'uint64',
+
+  'long long':      'int64',
+  'unsigned long long': 'uint64',
+  
+  'float':              'float32',
+  'double':             'float64',
+
+  'float complex':  'complex64',
+  'double complex': 'complex128',
+
+  # FIXME: 32/64 platforms
+  #'size_t': 'int',
+  'size_t': 'int64',
+
+  # stl
+  'std::string': 'string',
+  
+  # ROOT types
+  'Char_t'   : 'byte',
+  'UChar_t'  : 'byte',
+  'Short_t'  : 'int16',
+  'UShort_t' : 'uint16',
+  'Int_t'    : 'int',
+  'UInt_t'   : 'uint',
+
+  'Seek_t'   :  'int',
+  'Long_t'   :  'int64',
+  'ULong_t'  :  'uint64',
+  'Float_t'  :  'float32',
+  'Float16_t':  'float32', #FIXME
+  'Double_t' :  'float64',
+  'Double32_t': 'float64',
+
+  'Bool_t'   : 'bool',
+  'Text_t'   : 'byte',
+  'Byte_t'   : 'byte',
+  'Version_t': 'int16',
+  'Option_t':  'byte',
+  'Ssiz_t':    'int',
+  'Real_t':    'float32',
+  'Long64_t':  'int64',
+  'ULong64_t': 'uint64',
+  'Axis_t':    'float64',
+  'Stat_t':    'float64',
+  'Font_t':    'int16',
+  'Style_t':   'int16',
+  'Marker_t':  'int16',
+  'Width_t':   'int16',
+  'Color_t':   'int16',
+  'SCoord_t':  'int16',
+  'Coord_t':   'float64',
+  'Angle_t':   'float32',
+  'Size_t':    'float32',
+  }
+def cxx2go_typemap(cxx_type):
+  global _cxx2go_typemap
+  if cxx_type in _cxx2go_typemap:
+    o = _cxx2go_typemap[cxx_type]
+    if isinstance(o, (tuple,list)):
+      o = o[0]
+    return o
+  return '_go_unknown_%s' % cxx_type
+
+#FIXME
+def cxx2cgo_typemap(cxx_type):
+  return cxx2go_typemap(cxx_type)
+  
 class genDictionary(object) :
 #----------------------------------------------------------------------------------
   def __init__(self, hfile, opts, gccxmlvers):
+    self.pkgname    = opts.get('package', 'foo')
     self.classes    = []
     self.namespaces = []
     self.typeids    = []
@@ -56,6 +157,12 @@ class genDictionary(object) :
     # references to id equal '_0' which is not defined anywhere
     self.xref['_0'] = {'elem':'Unknown', 'attrs':{'id':'_0','name':''}, 'subelems':[]}
     self.TObject_id = ''
+    # a map of 'fct-scoped name' -> [gccxml_fct_id,]
+    # to detect when a function has overloads (and generate the appropriate
+    # Go dispatch code)
+    self.fct_overloads = {}
+    pass
+  
 #----------------------------------------------------------------------------------
   def addTemplateToName(self, attrs):
     if attrs['name'].find('>') == -1 and 'demangled' in attrs :
@@ -253,7 +360,7 @@ class genDictionary(object) :
         if fname in transient_fields:
 	  if f.has_key('extra') : f['extra']['transient'] = 'true'
 	  else                  : f['extra'] = {'transient':'true'}
-          transient_fields.remove (fname)
+        transient_fields.remove (fname)
 
     if transient_fields:
       print "--->> genreflex: WARNING: Transient fields declared in selection " +\
@@ -445,7 +552,7 @@ class genDictionary(object) :
     # Filter internal GCC classes
     classes =  filter( lambda c: c['name'].find('_type_info_pseudo') == -1, classes)
     return self.autosel( classes )
- #----------------------------------------------------------------------------------
+#----------------------------------------------------------------------------------
   def autosel(self, classes):
     types = []
     for c in self.classes:
@@ -526,16 +633,16 @@ class genDictionary(object) :
             if xref['elem'] in ['Field','Typedef'] and xref['attrs']['access']=="public":
               type = xref['attrs']['type']
               self.getdependent(type, types)
-	    elif xref['elem'] in ['Method','OperatorMethod','Constructor'] \
+            elif xref['elem'] in ['Method','OperatorMethod','Constructor'] \
                      and self.isMethodReallyPublic(m):
               if 'returns' in xref['attrs']:
                 type = xref['attrs']['returns']
                 self.getdependent(type, types)
-	      for arg in  xref['subelems']:
-		  type = arg['type']
-		  self.getdependent(type, types)
-	    else:
-	      pass #print "Doing nothing for element:", self.xref[m]['elem']
+              for arg in  xref['subelems']:
+                type = arg['type']
+                self.getdependent(type, types)
+            else:
+              pass #print "Doing nothing for element:", self.xref[m]['elem']
         if 'bases' in attrs :
           for b in attrs['bases'].split() :
             if b[:10] == 'protected:' : b = b[10:]
@@ -560,6 +667,112 @@ class genDictionary(object) :
     return l2
 #----------------------------------------------------------------------------------
   def generate(self, file, selclasses, selfunctions, selenums, selvariables, cppinfo, ioReadRules = None, ioReadRawRules = None) :
+    # output file descriptors
+    ofds = {
+      'cxx': StringIO(),
+      'hdr': StringIO(),
+      'go':  StringIO(),
+      }
+
+    _pkg_fname = self.pkgname.replace('/','_')
+
+    _go_write = ofds['go'].write
+    _cxx_write= ofds['cxx'].write
+    _hdr_write= ofds['hdr'].write
+
+    _go_write(dedent(
+      '''\
+      package %s
+
+      /*
+       #include <stdlib.h>
+       #include <string.h>
+
+       #include "%s.h"
+       #cgo LDFLAGS: -l%s
+       */
+      import "C"
+      import "unsafe"
+
+      ''' % (
+        self.pkgname,
+        _pkg_fname,
+        self.pkgname
+        )))
+    
+    _cxx_write(dedent(
+      '''\
+      // C includes
+      #include <stdlib.h>
+      #include <string.h>
+
+      // C++ includes
+      #include <string>
+      #include <vector>
+
+      #include "%s.h"
+
+      #include "%s"
+      
+      #ifdef __cplusplus
+      extern "C" {
+      #endif
+
+      // helpers for CGo runtime
+
+      typedef struct { char *p; int n; } _gostring_;
+      typedef struct { void* array; unsigned int len; unsigned int cap; } _goslice_;
+
+      
+      extern void crosscall2(void (*fn)(void *, int), void *, int);
+      extern void _cgo_allocate(void *, int);
+      extern void _cgo_panic(void *, int);
+
+      static void *_gocxx_goallocate(size_t len) {
+        struct {
+          size_t len;
+          void *ret;
+        } a;
+        a.len = len;
+        crosscall2(_cgo_allocate, &a, (int) sizeof a);
+        return a.ret;
+      }
+
+      static void _gocxx_gopanic(const char *p) {
+        struct {
+          const char *p;
+        } a;
+        a.p = p;
+        crosscall2(_cgo_panic, &a, (int) sizeof a);
+      }
+
+      static _gostring_ _gocxx_makegostring(const char *p, size_t l) {
+        _gostring_ ret;
+        ret.p = (char*)_gocxx_goallocate(l + 1);
+        memcpy(ret.p, p, l);
+        ret.n = l;
+        return ret;
+      }
+
+      #define GOCXX_contract_assert(expr, msg) \
+        if (!(expr)) { _gocxx_gopanic(msg); } else
+
+      #define GOCXX_exception(code, msg) _gocxx_gopanic(msg)
+      
+      ''' % (_pkg_fname, self.hfile)
+      ))
+
+    _cxx_pkg_name = self.pkgname.upper().replace('-','_').replace('/','_')
+    _hdr_write(dedent(
+      '''\
+      #ifndef _GOCXXDICT_%s_H
+      #define _GOCXXDICT_%s_H 1
+
+      #ifdef __cplusplus
+      extern "C" {
+      #endif
+      ''' % (_cxx_pkg_name, _cxx_pkg_name)
+      ))
     for c in selclasses :  c['fullname'] = self.genTypeName(c['id'])
     selclasses = self.sortselclasses(selclasses)
     names = []
@@ -581,6 +794,7 @@ class genDictionary(object) :
       f.write( '\n' )
     if (ioReadRules): ioReadRules = self.resolveIoRulesTypedef(ioReadRules)
     if (ioReadRawRules): ioReadRawRules = self.resolveIoRulesTypedef(ioReadRawRules)
+
 
     #------------------------------------------------------------------------------
     # Process ClassDef implementation before writing: sets 'extra' properties
@@ -631,14 +845,20 @@ class genDictionary(object) :
         names.append(className)
         self.completeClass( c )
         self.enhanceClass( c )
-        scons, stubs   = self.genClassDict( c, clReadRules, clReadRawRules )
+        scons, stubs   = self.genClassDict( c, clReadRules, clReadRawRules, ofds )
         f_buffer += stubs
         f_buffer += scons
         f_shadow += self.genClassShadow(c)
+        print 'class:',className
+        ## print '+'*80
+        ## import pprint
+        ## pprint.pprint(c)
+        ## print '+'*80
+        
     f_shadow += '}\n\n'
     f_shadow +=  '\n#endif // __CINT__\n'
-    f_buffer += self.genFunctionsStubs( selfunctions )
-    f_buffer += self.genInstantiateDict(selclasses, selfunctions, selenums, selvariables)
+    f_buffer += self.genFunctionsStubs( selfunctions, buffers=ofds)
+    f_buffer += self.genInstantiateDict(selclasses, selfunctions, selenums, selvariables, buffers=ofds)
     f.write('namespace {\n')
     f.write(self.genNamespaces(selclasses + selfunctions + selenums + selvariables))
     f.write(self.genAllTypes())
@@ -648,6 +868,91 @@ class genDictionary(object) :
     f.write(f_buffer)
     f.write('} // unnamed namespace\n')
     f.close()
+
+    _cxx_write(dedent(
+      '''\
+      
+      #ifdef __cplusplus
+      } /* extern "C" */
+      #endif
+
+      '''
+      ))
+
+    _hdr_write(dedent(
+      '''\
+      
+      #ifdef __cplusplus
+      } /* extern "C" */
+      #endif
+
+      #endif /* ! %s_H */
+      ''' % _cxx_pkg_name
+      ))
+
+    f = open('%s.cxx' % _pkg_fname, 'w')
+    f.write(ofds['cxx'].getvalue()) 
+    f.close()
+    
+    f = open('%s.h' % _pkg_fname, 'w')
+    f.write(ofds['hdr'].getvalue()) 
+    f.close()
+
+    f = open('%s.go' % _pkg_fname, 'w')
+    f.write(ofds['go'].getvalue()) 
+    f.close()
+
+    f = open('dump.xml','w')
+    f.write('=== keys ===\n')
+    f.write(str(self.xref.keys())+'\n')
+    f.write('=== items ===\n')
+    f.write(str(self.xref)+'\n')
+    f.close()
+
+    import cxxtypesystem as cxx_rtti
+    cxx_rtti._g_xref = self.xref
+    for t in cxx_rtti.builtin_types_itr():
+      #print "---",t
+      pass
+
+    if 0:
+      for n in ('std::string',
+                'std::wstring',
+                'std::vector<int>',
+                'IFoo',
+                'Foo',
+                'int', 'const int',
+                'char', 'const char*',
+                ):
+        t = cxx_rtti.CxxType.by_name(n)
+        print "+++",t
+      print "###",cxx_rtti.CxxType.by_id('_2546')
+      print "###",cxx_rtti.CxxType.by_id('_485')
+      print "###",cxx_rtti.CxxType.by_name('LongStr_t')
+      cc = cxx_rtti.CxxType.by_name('WithPrivateBase')
+      print "###",cc, cc.bases, cc.members
+      cc = cxx_rtti.CxxType.by_name('Foo')
+      print "###",cc, cc.bases, cc.members
+      voidptr = cxx_rtti.CxxType.by_name('void*')
+      print "@@@",voidptr,voidptr.is_void_pointer_type(),voidptr.is_pointer_type()
+      cc = cxx_rtti.CxxType.by_name('WithPrivateBase::Enum1')
+      print "@@@",cc, cc.members
+
+      cc = cxx_rtti.CxxType.by_name('Math2')
+      print "@@@",cc, cc.members
+
+      for n in ('TT::foo_t',
+                'TT::bar_t',
+                'TT::baz_t',
+                'int',
+                'int*',
+                'const int',
+                'const int*',
+
+                ):
+        cc = cxx_rtti.CxxType.by_name(n)
+        print '==',cc, "is-canonical=%s"%cc.is_canonical(), cc.canonical_type(), cc.name()
+      
     return names, self.warnings, self.errors
 #----------------------------------------------------------------------------------
   def add_template_defaults (self, c, selection):
@@ -875,7 +1180,7 @@ class genDictionary(object) :
     c += '\n'
     return c
 #----------------------------------------------------------------------------------
-  def genInstantiateDict( self, selclasses, selfunctions, selenums, selvariables) :
+  def genInstantiateDict( self, selclasses, selfunctions, selenums, selvariables, buffers) :
     c = 'namespace {\n  struct Dictionaries {\n    Dictionaries() {\n'
     c += '      Reflex::Instance initialize_reflex;\n'
     for attrs in selclasses :
@@ -883,7 +1188,7 @@ class genDictionary(object) :
         clf = '::'+ attrs['fullname']
         clt = string.translate(str(clf), self.transtable)
         c += '      %s_dict(); \n' % (clt)
-    c += self.genFunctions(selfunctions)
+    c += self.genFunctions(selfunctions, buffers)
     c += self.genEnums(selenums)
     c += self.genVariables(selvariables)
     c += '    }\n    ~Dictionaries() {\n'
@@ -911,7 +1216,7 @@ class genDictionary(object) :
         sc += '  rule->fSource      = "%s";\n' % (attrs['source'],)
         
       if rule.has_key( 'funcname' ):
-        sc += '  rule->fFunctionPtr = Reflex::BuilderFunc2Void(%s);\n' % (rule['funcname'],)
+        sc += '  rule->fFunctionPtr = (void *)%s;\n' % (rule['funcname'],)
         sc += '  rule->fCode        = "%s";\n' % (rule['code'].replace( '\n', '\\n' ), )
 
       if attrs.has_key( 'version' ):
@@ -1125,12 +1430,31 @@ class genDictionary(object) :
       id = self.xref[id]['attrs']['type']
     return self.genTypeName(id,enum=True, const=True)
 #---------------------------------------------------------------------------------
-  def genClassDict(self, attrs, ioReadRules, ioReadRawRules):
+  def genClassDict(self, attrs, ioReadRules, ioReadRawRules, buffers):
+    bufs = {
+      'cxx_head': '',
+      'cxx_body': '',
+      'go_impl':  '',
+      'go_iface': '',
+      }
+    
     members, bases = [], []
     cl  = attrs.get('name')
     clf = '::' + attrs['fullname']
     cls = attrs['fullname']
     clt = string.translate(str(clf), self.transtable)
+
+    go_cls_iface_name = self._gen_go_name_fromid(attrs['id'])
+    go_cls_impl_name = 'Gocxxcptr' + go_cls_iface_name
+
+    bufs['go_iface'] += '// %s wraps the C++ class %s\n' % (
+      go_cls_iface_name, clf)
+    bufs['go_iface'] += '\ntype %s interface {\n' % go_cls_iface_name
+    bufs['go_iface'] += '  Gocxxcptr() uintptr\n'
+    bufs['go_iface'] += '  GocxxIs%s()\n' % go_cls_iface_name
+
+    bufs['go_impl'] += 'type %s uintptr\n' % go_cls_impl_name
+    
     bases = self.getBases( attrs['id'] )
     if 'members' in attrs : members = string.split(attrs['members'])
     mod = self.genModifier(attrs,None)
@@ -1156,42 +1480,12 @@ class genDictionary(object) :
 
     members = filter(self.memberfilter, members)  # Eliminate problematic members
 
+    if not self.quiet:
+      print 'gendict:: genClassDict: clf:',clf,'cls:',cls,'clt:',clt,"=>",\
+            self._gen_go_name_fromid(attrs['id'])
+      
     # Fill the different streams sc: constructor, ss: stub functions
     sc = ''
-
-    #-------------------------------------------------------------------------------
-    # Get the data members information and write down the schema evolution functions
-    #-------------------------------------------------------------------------------
-    memberTypeMap = self.createTypeMap( members )
-    if ioReadRules:
-      self.removeBrokenIoRules( cls, ioReadRules, memberTypeMap );
-      sc += self.processIoReadFunctions( cls, clt, ioReadRules, memberTypeMap )
-    if ioReadRawRules:
-      self.removeBrokenIoRules( csl, ioReadRawRules, memberTypeMap );
-      sc += self.processIoReadRawFunctions( cls, clt, ioReadRawRules, memberTypeMap )
-
-    sc += '//------Dictionary for class %s -------------------------------\n' % cl
-    sc += 'void %s_db_datamem(Reflex::Class*);\n' % (clt,)
-    sc += 'void %s_db_funcmem(Reflex::Class*);\n' % (clt,)
-    sc += 'Reflex::GenreflexMemberBuilder %s_datamem_bld(&%s_db_datamem);\n' % (clt, clt)
-    sc += 'Reflex::GenreflexMemberBuilder %s_funcmem_bld(&%s_db_funcmem);\n' % (clt, clt)
-    sc += 'void %s_dict() {\n' % (clt,)
-
-    # Write the schema evolution rules
-    if ioReadRules or ioReadRawRules:
-      sc += '  ROOT::TSchemaHelper* rule;\n'
-      
-    if ioReadRules:
-      sc += '  // the io read rules\n'
-      sc += '  std::vector<ROOT::TSchemaHelper> readrules(%d);\n' % (len(ioReadRules),)
-      sc += self.processIoRules( ioReadRules, 'readrules' )
-      sc += '\n\n'
-
-    if ioReadRawRules:
-      sc += '  // the io readraw rules\n'
-      sc += '  std::vector<ROOT::TSchemaHelper> readrawrules(%d);\n' % (len(ioReadRawRules),)
-      sc += self.processIoRules( ioReadRawRules, 'readrawrules' )
-      sc += '\n\n'
 
     if 'extra' in attrs and 'contid' in attrs['extra'] : 
       cid = attrs['extra']['contid'].upper()
@@ -1220,14 +1514,21 @@ class genDictionary(object) :
           else :
             sc += '\n  .AddProperty(Reflex::Literal("%s"), "%s")' % (pname, pval)
 
-    if ioReadRules:
-      sc += '\n  .AddProperty("ioread", readrules )'
-    if ioReadRawRules:
-      sc += '\n  .AddProperty("ioreadraw", readrawrules )'
-
+    bufs_bases = []
     for b in bases :
-      sc += '\n' + self.genBaseClassBuild( clf, b )
-
+      bufs_base = {
+        'go_impl': '',
+        'go_iface': '',
+        'cxx': '',
+        }
+      bufs_bases.append(bufs_base)
+      sc += '\n' + self.genBaseClassBuild( clf, b, buffers )
+      #print "gendict:: genClassDict: class [%s] has base [%s]" % (clf, b)
+      if b['access'] == 'public':
+        go_base_cls_iface_name = self._gen_go_name_fromid(b['type'])
+        bufs['go_iface'] += '  Get%s() %s\n' % (go_base_cls_iface_name,
+                                                go_base_cls_iface_name)
+        
     # on demand builder:
     # data member, prefix
     odbdp = '//------Delayed data member builder for class %s -------------------\n' % cl
@@ -1238,8 +1539,16 @@ class genDictionary(object) :
 
     for m in members :
       funcname = 'gen'+self.xref[m]['elem']+'Build'
-      if funcname in dir(self) :
-        line = self.__class__.__dict__[funcname](self, self.xref[m]['attrs'], self.xref[m]['subelems'])
+      if self.xref[m]['elem'] in (
+        'GetNewDelFunctions',
+        'GetBasesTable',
+        ):
+        continue
+#      print '---',self.getScopedFullName(m),self.xref[m]['elem'],\
+#            self.getFctPrototype_fromid(m)
+      if hasattr(self, funcname):
+        gen_fct = getattr(self, funcname)
+        line = gen_fct(self.xref[m]['attrs'], self.xref[m]['subelems'], buffers)
         if line :
           if not self.xref[m]['attrs'].get('artificial') in ('true', '1') :
             if funcname == 'genFieldBuild' :
@@ -1274,8 +1583,16 @@ class genDictionary(object) :
       ss = '//------Stub functions for class %s -------------------------------\n' % cl
       for m in members :
         funcname = 'gen'+self.xref[m]['elem']+'Def'
-        if funcname in dir(self) :
-          ss += self.__class__.__dict__[funcname](self, self.xref[m]['attrs'], self.xref[m]['subelems']) + '\n'
+        gen_fct = getattr(self, funcname, None)
+        if gen_fct:
+          ss += gen_fct(self.xref[m]['attrs'], self.xref[m]['subelems'], buffers) + '\n'
+
+    bufs['go_iface'] += '}\n\n' # end of interface
+    
+    # commit buffers
+    buffers['go'].write(bufs['go_iface'])
+    buffers['go'].write(bufs['go_impl'])
+    
     return sc, ss
 #----------------------------------------------------------------------------------
   def checkAccessibleType( self, type ):
@@ -1464,7 +1781,7 @@ class genDictionary(object) :
       c += indent + '};\n'
     return c    
 #----------------------------------------------------------------------------------
-  def genTypedefBuild(self, attrs, childs) :
+  def genTypedefBuild(self, attrs, childs, buffers) :
     if self.no_membertypedefs : return ''
     # access selection doesn't work with gccxml0.6 - typedefs don't have it
     if self.interpreter and 'access' in attrs : return ''
@@ -1472,7 +1789,7 @@ class genDictionary(object) :
     s += '  .AddTypedef(%s, Reflex::Literal("%s::%s"))' % ( self.genTypeID(attrs['type']), self.genTypeName(attrs['context']), attrs['name']) 
     return s  
 #----------------------------------------------------------------------------------
-  def genEnumerationBuild(self, attrs, childs):
+  def genEnumerationBuild(self, attrs, childs, buffers):
     s = ''
     name = self.genTypeName(attrs['id']) 
     values = ''
@@ -1498,6 +1815,212 @@ class genDictionary(object) :
       if ns : s = ns + '::'
       elif colon  : s = '::'
     return s
+
+ 
+#----------------------------------------------------------------------------------
+  def _gen_go_name_fromid(self, cxx_id):
+    xref = self.xref[cxx_id]
+    attrs= xref['attrs']
+    elem = xref['elem']
+
+    scoped_name = [attrs.get('name','')]
+    if 'context' in attrs:
+      ctxt = self.getScopedFullName(attrs['context'])
+      if ctxt != '::':
+        scoped_name.insert(0, ctxt)
+    name = '::'.join(scoped_name)
+
+    if elem in ('Function', 'Class'):
+      #s = attrs['name'][0].upper() + attrs['name'][1:]
+      s = name[0].upper() + name[1:]
+    elif elem in ('ReferenceType','CvQualifiedType',):
+      return self._gen_go_name_fromid(attrs['type'])
+    else:
+      #print 'attrs:',attrs
+      #print 'elems:',elem
+      #s = attrs['name']
+      s = name
+    #s = attrs['name']
+
+    # special cases
+    if s in _cxx2go_typemap:
+      return cxx2go_typemap(s)
+
+    # sanitize
+    o = s.replace('<',  '_Sl_')\
+         .replace('>',  '_Sg_')\
+         .replace(',',  '_Sc_')\
+         .replace(' ',  '_')\
+         .replace('::', '_')
+    if o in _cxx2go_typemap:
+      return cxx2go_typemap(o)
+    return o
+
+#----------------------------------------------------------------------------------
+  def _gen_go_name(self, cxx_name):
+    s = cxx_name
+    o = s.replace('<',  '_Sl_')\
+         .replace('>',  '_Sg_')\
+         .replace(',',  '_Sc_')\
+         .replace(' ',  '_')\
+         .replace('::', '_')
+    if o in _cxx2go_typemap:
+      return cxx2go_typemap(o)
+    return o
+
+#----------------------------------------------------------------------------------
+  def _cxx2cgo_typemap_id(self, cxx_id):
+    if self._is_string_like_fromid(cxx_id):
+      return 'string'
+    xref = self.xref[cxx_id]
+    attrs= xref['attrs']
+    elem = xref['elem']
+    if elem in ('Function', 'Class'):
+      s = attrs['name'][0].upper() + attrs['name'][1:]
+    elif elem in ('ReferenceType','CvQualifiedType',):
+      return self._cxx2cgo_typemap_id(attrs['type'])
+    elif elem in ('PointerType',):
+      #print "+++",attrs,self.getScopedFullName(attrs['type'])
+      return self._cxx2cgo_typemap_id(attrs['type'])
+      #s = attrs['name']
+    else:
+      #print 'attrs:',attrs
+      #print 'elems:',elem
+      s = attrs['name']
+    #s = attrs['name']
+    if s == 'string':
+      return s
+    
+    o = s.replace('<',  '_Sl_')\
+         .replace('>',  '_Sg_')\
+         .replace(',',  '_Sc_')\
+         .replace(' ',  '_')\
+         .replace('::', '_')
+    #if o in _cxx2cgo_typemap:
+    #  return cxx2go_typemap(o)
+    return "C."+o
+
+#----------------------------------------------------------------------------------
+  def _is_string_like_fromid(self, cxx_id):
+    raw_cxx_id = self._resolve_ptr_type(cxx_id, qualified=False)
+    xref  = self.xref[raw_cxx_id]
+    attrs = xref['attrs']
+    elem  = xref['elem']
+    n = attrs['name']
+    if n == 'string' or \
+       n == 'TString':
+      return True
+
+    if n == 'char' and self.xref[cxx_id]['elem'] == 'PointerType':
+      return True
+    
+    n = self.xref[cxx_id]['attrs']['name']
+    if n in ('const char*', 'char const*'):
+      return True
+    return False
+
+#----------------------------------------------------------------------------------
+  def _is_cstring_like_fromid(self, cxx_id):
+    raw_cxx_id = self._resolve_ptr_type(cxx_id, qualified=False)
+    xref  = self.xref[raw_cxx_id]
+    attrs = xref['attrs']
+    elem  = xref['elem']
+    n = attrs['name']
+    if n == 'string' or \
+       n == 'TString':
+      return False
+
+    if n == 'char' and self.xref[cxx_id]['elem'] == 'PointerType':
+      return True
+
+    n = self.xref[cxx_id]['attrs']['name']
+    if n in ('const char*', 'char const*'):
+      return True
+    return False
+
+#----------------------------------------------------------------------------------
+  def _is_string_like(self, cxx_name):
+    n = cxx_name
+    for qual in ('const ',
+                 'volatile ',
+                 # second pass...
+                 'const ',
+                 'volatile '):
+      if n.startswith(qual):
+        n = n[len(qual):]
+        pass
+      pass
+    
+    if n[-1] in ('*', '&'):
+      n = n[:-1]
+      pass
+    
+    if n.startswith('::'):
+      n = n[len('::'):]
+      pass
+    
+    #print "+++",cxx_name,"=> [%s]" % n
+    if n in ('string',
+             'std::string',
+             'TString',
+             ):
+      return True
+    if cxx_name in ('const char*', 'char const*',
+                    'char*'):
+      return True
+    return False
+
+#----------------------------------------------------------------------------------
+  def _is_cstring_like(self, cxx_name):
+    n = cxx_name
+    for qual in ('const ',
+                 'volatile ',
+                 # second pass...
+                 'const ',
+                 'volatile '):
+      if n.startswith(qual):
+        n = n[len(qual):]
+        pass
+      pass
+    
+    if n[-1] in ('*', '&'):
+      n = n[:-1]
+      pass
+    
+    if n.startswith('::'):
+      n = n[len('::'):]
+      pass
+    
+    #print "+++",cxx_name,"=> [%s]" % n
+    if cxx_name in ('const char*', 'char const*',
+                    'char*'):
+      return True
+    return False
+
+#----------------------------------------------------------------------------------
+  def _resolve_ptr_type(self, cxx_id, qualified=True):
+    def _follow_type(cxx_id, qualified=qualified):
+      while 1:
+        xref  = self.xref[cxx_id]
+        attrs = xref['attrs']
+        elem  = xref['elem']
+        if elem in ('ReferenceType', 'PointerType', 'CvQualifiedType'):
+          #cxx_id = _follow_type(cxx_id, qualified)
+          cxx_id = attrs['type']
+          xref = self.xref[cxx_id]
+          elem  = xref['elem']
+          attrs = xref['attrs']
+        else:
+          break
+      return cxx_id
+
+    cxx_id = _follow_type(cxx_id, qualified)
+
+    xref = self.xref[cxx_id]
+    attrs= xref['attrs']
+    elem = xref['elem']
+    return cxx_id
+    
 #----------------------------------------------------------------------------------
 # const is CONST VETO!!!
   def genTypeName(self, id, enum=False, const=False, colon=False, alltempl=False, _useCache=True, _cache={}) :
@@ -1528,7 +2051,10 @@ class genDictionary(object) :
         if const : return self.genTypeName(nid, enum, False, colon)
         else     : return cvdict[id[-1]] + ' ' + self.genTypeName(nid, enum, False, colon)
     # "const" vetoeing must not recurse
-    const = False
+    #XXX
+    #const = False
+    # we don't care about const-correctness...
+    const = True
     s = self.genScopeName(attrs, enum, const, colon)
     if elem == 'Namespace' :
       if 'name' not in attrs : s += '@anonymous@namespace@'
@@ -1695,74 +2221,328 @@ class genDictionary(object) :
         idx += 1
     return s
 #----------------------------------------------------------------------------------
-  def genFunctionsStubs(self, selfunctions) :
+  def genFunctionsStubs(self, selfunctions, buffers) :
     s = ''
+    if not self.quiet:
+      print 'gendict: genFunctionsStubs: first pass...'
+    # first pass to capture the functions which are overloaded or have default args...
     for f in selfunctions :
       id   = f['id']
+      fct_scoped_name = self.getScopedFullName(id)
+      if not fct_scoped_name in self.fct_overloads:
+        self.fct_overloads[fct_scoped_name] = []
+        pass
+      
       name = self.genTypeName(id)
       self.genTypeID(id)
       args = self.xref[id]['subelems']
       returns  = self.genTypeName(f['returns'], enum=True, const=True)
+      retaddrpar = ''
+      if returns != 'void':
+        retaddrpar= ' retaddr'
       demangled = self.xref[id]['attrs'].get('demangled')
       if not demangled or not len(demangled):
         demangled = name
-      if not self.quiet : print  'function '+ demangled
-      retaddrpar=''
-      if returns != 'void': retaddrpar=' retaddr'
-      argspar=''
-      if len(args) : argspar=' arg'
-      head =  'static void function%s( void*%s, void*, const std::vector<void*>&%s, void*)\n{\n' % (id, retaddrpar, argspar)
+      if not self.quiet : print  'function '+ demangled, "[%s]" % fct_scoped_name
+
       ndarg = self.getDefaultArgs(args)
       narg  = len(args)
       if ndarg : iden = '  '
       else     : iden = ''
-      body = ''
-      for n in range(narg-ndarg, narg+1) :
-        if ndarg :
-          if n == narg-ndarg :  body += '  if ( arg.size() == %d ) {\n' % n
-          else               :  body += '  else if ( arg.size() == %d ) { \n' % n
-        if returns == 'void' :
-          body += iden + '  %s(' % ( name, )
-          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-          body += ');\n'
-        else :
-          if returns[-1] in ('*',')' ) and returns.find('::*') == -1:
-            body += iden + '  if (retaddr) *(void**)retaddr = (void*)%s(' % ( name, )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += ');\n'
-            body += iden + '  else %s(' % ( name, )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += ');\n'
-          elif returns[-1] == '&' :
-            body += iden + '  if (retaddr) *(void**)retaddr = (void*)&%s(' % ( name, )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += ');\n'
-            # The seemingly useless '&' below is to work around Microsoft's
-            # compiler 7.1-9 odd complaint C2027 if the reference has only
-            # been forward declared.
-            if sys.platform == 'win32':
-              body += iden + '  else &%s(' % ( name, )
-            else:
-              # but '&' will trigger an "unused value" warning on != MSVC
-              body += iden + '  else %s(' % ( name, )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += ');\n'
-          else :
-            body += iden + '  if (retaddr) new (retaddr) (%s)(%s(' % ( returns, name )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += '));\n'
-            body += iden + '  else %s(' % ( name )
-            head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
-            body += ');\n'
-        if ndarg : 
-          if n != narg : body += '  }\n'
-          else :
-            if returns == 'void' : body += '  }\n'
-            else :                 body += '  }\n'
-      s += head + body + '}\n'
+
+      # generate wrappers for overloaded functions and default args
+      for ifct in range(ndarg+1):
+        fct_id_str = '%s' % id
+        if ndarg > 0:
+          fct_id_str = '%s_%s' % (id, ifct)
+
+        cxx_args = ['arg_%d' % (i,) for i in range(len(args)-ndarg+ifct)]
+
+        go_ret_type = ''
+        go_args = []
+        cxx_types = []
+        for i,cxx_arg in enumerate(cxx_args):
+          #go_arg = cxx2go_typemap(cxx_arg)#cxx_arg['type']]['attrs']['name'])
+          #cxx_type = self.xref[args[i]['type']]['attrs']['name']
+          if self._is_string_like_fromid(args[i]['type']):
+            go_arg = 'string'
+          else:
+            cxx_type_id = self._resolve_ptr_type(args[i]['type'])
+            # cxx_type = self.xref[cxx_type_id]['attrs']['name']
+            cxx_type = self.getScopedFullName(cxx_type_id)
+            cxx_types.append(cxx_type)
+            go_arg = cxx2go_typemap(cxx_type)
+            pass
+          go_args.append(go_arg)
+          
+        if returns != 'void':
+          #go_ret_type = cxx2go_typemap(self.xref[f['returns']]['attrs']['name'])
+          go_ret_type = self._gen_go_name_fromid(f['returns'])
+
+        # store the fct_id and some metadata...
+        self.fct_overloads[fct_scoped_name].append(
+          (fct_id_str,
+           {'cxx_fct_proto': self.getFctPrototype(f),
+            'cxx_fct_id': id,
+            'cxx_fct_id_str': fct_id_str,
+            'go_ret_type': go_ret_type,
+            'go_args': go_args,
+            'cxx_types': cxx_types,})
+          )
+      pass
+    
+    if not self.quiet:
+      print 'gendict: genFunctionsStubs: second pass...'
+    # second pass... the real deal.
+    for f in selfunctions :
+      id   = f['id']
+      fct_scoped_name = self.getScopedFullName(id)
+      name = self.genTypeName(id)
+      self.genTypeID(id)
+      args = self.xref[id]['subelems']
+      returns  = self.genTypeName(f['returns'], enum=True, const=False)
+      retaddrpar = ''
+      if returns != 'void':
+        retaddrpar= ' retaddr'
+      demangled = self.xref[id]['attrs'].get('demangled')
+      if not demangled or not len(demangled):
+        demangled = name
+      if not self.quiet : print  'function '+ demangled, "[%s]" % (fct_scoped_name, )
+
+      ndarg = self.getDefaultArgs(args)
+      narg  = len(args)
+      if ndarg : iden = '  '
+      else     : iden = ''
+
+      _needs_go_dispatch = len(self.fct_overloads[fct_scoped_name]) > 1
+      
+      # generate wrappers for overloaded functions
+      for ifct in range(ndarg+1):
+        fct_id_str = '%s' % id
+        if ndarg > 0:
+          fct_id_str = '%s_%s' % (id, ifct)
+          
+        head =  'static void function%s( void*%s, void*, const std::vector<void*>&%s, void*)\n{\n' % (fct_id_str, retaddrpar, '')
+          
+        
+        cxx_args = ['arg_%d' % (i,) for i in range(len(args)-ndarg+ifct)]
+        fct_args = []
+        if retaddrpar:
+          fct_args = ', '.join('%s %s' % l for l in zip(['void*']* (len(cxx_args)+1),
+                                                        [retaddrpar,] + cxx_args))
+        else:
+          fct_args = ', '.join('%s %s' % l for l in zip(['void*']* (len(cxx_args)),
+                                                        cxx_args))
+          pass
+
+        cxx_fct_name = '_gocxx_fct_%s_%s' % (self.pkgname, fct_id_str)
+        
+        buffers['hdr'].write('\n/* %s */\n' % self.getFctPrototype(f))
+        buffers['hdr'].write('void %s(%s);\n'   % (cxx_fct_name, fct_args or 'void'))
+
+        buffers['cxx'].write('/* %s */\n' % self.getFctPrototype(f))                                   
+        buffers['cxx'].write('void %s(%s)\n{\n' % (cxx_fct_name, fct_args or 'void'))
+        
+        body = ''
+
+        cxx_head = ''
+        cxx_body = ''
+        bufs = {
+          'cxx_head': '',
+          'cxx_body': '',
+          'cxx_tail': '',
+          'go_iface': '',
+          'go_impl':  '',
+          }
+
+        go_ret_type = ''
+        go_args = []
+        cxx_types = []
+        for i,cxx_arg in enumerate(cxx_args):
+          #go_arg = cxx2go_typemap(cxx_arg)#cxx_arg['type']]['attrs']['name'])
+          #cxx_type = self.xref[args[i]['type']]['attrs']['name']
+          if self._is_string_like_fromid(args[i]['type']):
+            go_arg = 'string'
+          else:
+            cxx_type_id = self._resolve_ptr_type(args[i]['type'])
+            # cxx_type = self.xref[cxx_type_id]['attrs']['name']
+            cxx_type = self.getScopedFullName(cxx_type_id)
+            cxx_types.append(cxx_type)
+            go_arg = cxx2go_typemap(cxx_type)
+            #print "***",cxx_type_id,cxx_type,go_arg,args[i]['type']
+          go_args.append(go_arg)
+          
+        if returns != 'void':
+          #go_ret_type = cxx2go_typemap(self.xref[f['returns']]['attrs']['name'])
+          go_ret_type = self._gen_go_name_fromid(f['returns'])
+
+        if _needs_go_dispatch:
+          go_name = self._gen_go_name(fct_scoped_name) + '__GOCXX%s' % fct_id_str
+        else:
+          go_name = self._gen_go_name(fct_scoped_name)
+          
+        if ndarg > 0:
+          go_fct_args = ', '.join('arg_%d %s' % l for l in zip(range(len(go_args)), go_args))
+          bufs['go_impl'] += 'func %s(%s) %s {\n' % (go_name, go_fct_args, go_ret_type)
+          pass
+        else:
+          go_fct_args = ', '.join('arg_%d %s' % l for l in zip(range(len(go_args)), go_args))
+          bufs['go_impl'] += 'func %s(%s) %s {\n' % (go_name, go_fct_args, go_ret_type)
+          pass
+
+        for i,go_arg in enumerate(go_args):
+          cxx_type = args[i]['type']
+          if self._is_cstring_like_fromid(args[i]['type']):
+            bufs['go_impl'] += '  c_arg_%d := C.CString(arg_%d)\n' % (i, i)
+            bufs['go_impl'] += '  defer C.free(unsafe.Pointer(c_arg_%d))\n' % i
+          else:
+            bufs['go_impl'] += '  c_arg_%d := %s(arg_%d)\n' % (i, self._cxx2cgo_typemap_id(cxx_type), i)
+          pass
+        cgo_args = []
+        if returns != 'void':
+          bufs['go_impl'] += '  var c_ret %s\n' % (self._cxx2cgo_typemap_id(f['returns']),)
+          cgo_args = ['unsafe.Pointer(&c_ret)',]
+          pass
+        for ii in range(len(go_args)):
+          if self._is_cstring_like_fromid(args[ii]['type']):
+            cgo_args.append('unsafe.Pointer(c_arg_%d)'%ii)
+          else:
+            cgo_args.append('unsafe.Pointer(&c_arg_%d)'%ii)
+          pass
+        bufs['go_impl'] += '  C.%s(%s)\n' % (cxx_fct_name, ', '.join(cgo_args))
+          
+        #print ">>> ndarg:",ndarg,narg,'\n',self.xref[id]
+
+        if returns[-1] in ('*',')' ) and returns.find('::*') == -1:
+          bufs['cxx_head'] += iden+'  void** c_retaddr = (void**)retaddr;\n'
+          bufs['cxx_body'] += iden+'  *c_retaddr = (void*)%s(' % name
+          self.genMCOArgs(args, len(cxx_args), len(iden)+2, cxx_head, cxx_body, bufs)
+          bufs['cxx_body'] += ');\n'
+          bufs['go_impl'] += '  return c_ret;\n}\n'
+
+        elif returns[-1] == '&':
+          if self._is_string_like_fromid(f['returns']):
+            bufs['cxx_head'] += iden+'  %s c_retaddr;\n' % returns[:-1]
+            bufs['cxx_body'] += iden+'  c_retaddr = (%s)%s(' % (returns[:-1],name)
+            bufs['cxx_tail'] += iden+'  *((_gostring_*)retaddr) = _gocxx_makegostring((char*)c_retaddr.c_str(), c_retaddr.size());\n'
+            pass
+          else:
+            bufs['cxx_head'] += iden+'  void** c_retaddr = (void**)retaddr;\n'
+            bufs['cxx_body'] += iden+'  *c_retaddr = (void*)&%s(' % name
+            pass
+          self.genMCOArgs(args, len(cxx_args), len(iden)+2, cxx_head, cxx_body, bufs)
+          bufs['cxx_body'] += ');\n'
+          bufs['go_impl'] += '  return c_ret;\n}\n'
+
+        else:
+          bufs['cxx_body'] += iden+'  '
+          if self._is_string_like_fromid(f['returns']):
+            bufs['cxx_body'] += '%s c_retaddr = ' % returns
+            #bufs['cxx_body'] += 'c_retaddr = '
+            bufs['cxx_tail'] += iden+'  *((_gostring_*)retaddr) = _gocxx_makegostring((char*)c_retaddr.c_str(), c_retaddr.size());\n'
+          elif returns != 'void':
+            bufs['cxx_head'] += iden+'  void* c_retaddr = (void*)retaddr;\n'
+            bufs['cxx_body'] += 'new (c_retaddr) '
+          bufs['cxx_body'] += '(%s)(%s(' % (returns, name,)
+          self.genMCOArgs(args, len(cxx_args), len(iden)+2, cxx_head, cxx_body, bufs)
+          bufs['cxx_body'] += '));\n'
+          if returns != 'void':
+            bufs['go_impl'] += '  return %s(c_ret);\n}\n' % go_ret_type
+          else:
+            bufs['go_impl'] += '}\n'
+
+          pass
+        buffers['cxx'].write(bufs['cxx_head'])
+        buffers['cxx'].write(bufs['cxx_body'])
+        buffers['cxx'].write(bufs['cxx_tail'])
+        s += head + body + '}\n'
+        buffers['cxx'].write('}\n\n')
+
+        
+        buffers['go'].write(bufs['go_iface'])
+        buffers['go'].write(bufs['go_impl']+'\n')
+    pass # loop over selected functions
+
+    if not self.quiet:
+      print 'gendict: genFunctionsStubs: dispatch pass...'
+    for fct_scoped_name in self.fct_overloads.keys():
+
+      fct_overloads = self.fct_overloads[fct_scoped_name]
+      if len(fct_overloads) <= 1:
+        continue
+      
+      bufs = {
+        'cxx_head': '',
+        'cxx_body': '',
+        'cxx_tail': '',
+        'go_iface': '',
+        'go_impl':  '',
+        }
+
+      #fid = fct_overloads[0][1]['cxx_fct_id']
+      go_name = self._gen_go_name(fct_scoped_name)
+      go_ret_type = 'interface{}'
+
+      ret_types = list(set(infos[1]['go_ret_type'] for infos in fct_overloads))
+      if len(ret_types) > 1:
+        go_ret_type = 'interface{}'
+      else:
+        go_ret_type = ret_types[0]
+      
+      bufs['go_impl'] += dedent(
+        '''\
+        func %s(args ...interface{}) %s {
+        \targc := len(args)
+        ''' % (go_name, go_ret_type,)
+        )
+      # regroup by number of arguments and then by arg-type
+      dispatch_table = {}
+      for ifct,infos in enumerate(fct_overloads):
+        fct_id_str = infos[0]
+        fct_infos  = infos[1]
+        nargs = len(fct_infos['go_args'])
+        try:
+          dispatch_table[nargs].append(ifct)
+        except KeyError:
+          dispatch_table[nargs] = [ifct]
+          pass
+        pass
+
+      bufs['go_impl'] += '\tswitch argc {\n'
+      for nargs,ifcts in dispatch_table.items():
+        bufs['go_impl'] += '\tcase %s:\n' % (nargs,)
+        for ifct in ifcts:
+          bufs['go_impl'] += '\t{\n'
+          fct_infos = fct_overloads[ifct][1]
+          go_arg_types = fct_infos['go_args']
+          go_ret_type  = fct_infos['go_ret_type']
+          bufs['go_impl'] += '\t // %s\n' % (fct_infos['cxx_fct_proto'],)
+          for iarg, go_type in enumerate(go_arg_types):
+            bufs['go_impl'] += '\t arg_%d, ok_%d := args[%d].(%s)\n' % (
+              iarg, iarg, iarg, go_type
+              )
+          go_casts = ' && '.join('ok_%d' % l for l in range(len(go_arg_types)))
+          bufs['go_impl'] += '\t if %s {\n' % (go_casts or 'true',)
+          go_fct_name = go_name + '__GOCXX%s' % fct_infos['cxx_fct_id_str']
+          go_arg_strs = ', '.join('arg_%d' % l for l in range(len(go_arg_types)))
+          bufs['go_impl'] += '\t   return %s(%s)\n' % (
+            go_fct_name, go_arg_strs, #go_ret_type
+            )
+          bufs['go_impl'] += '\t }\n'
+          #bufs['go_impl'] += '// %s %s\n' % (ifct, fct_overloads[ifct])
+          bufs['go_impl'] += '\t}\n'
+          pass
+        pass
+      bufs['go_impl'] += '\t}\n'
+
+      bufs['go_impl'] += '\tpanic("No match for overloaded function call")\n}\n'
+      buffers['go'].write(bufs['go_iface'])
+      buffers['go'].write(bufs['go_impl']+'\n')
+      pass # loop over overload-functions
+      
     return s  
 #----------------------------------------------------------------------------------
-  def genFunctions(self, selfunctions) :
+  def genFunctions(self, selfunctions, buffers) :
     s = ''
     i = 0;
     for f in selfunctions :
@@ -1818,7 +2598,7 @@ class genDictionary(object) :
       else                    : pass
     return cnt
 #----------------------------------------------------------------------------------
-  def genFieldBuild(self, attrs, childs):
+  def genFieldBuild(self, attrs, childs, buffers):
     type   = self.genTypeName(attrs['type'], enum=False, const=False)
     cl     = self.genTypeName(attrs['context'],colon=True)
     cls    = self.genTypeName(attrs['context'])
@@ -1860,7 +2640,7 @@ class genDictionary(object) :
           c += '\n  .AddProperty(Reflex::Literal("%s"),Reflex::Literal("%s"))' % (pname, pval)     
     return c
 #----------------------------------------------------------------------------------
-  def genVariableBuild(self, attrs, childs):
+  def genVariableBuild(self, attrs, childs, buffers):
     if 'access' in attrs and attrs['access'] in ('private','protected') : return ''
     type   = self.genTypeName(attrs['type'], enum=False, const=False)
     cl     = self.genTypeName(attrs['context'],colon=True)
@@ -1961,12 +2741,12 @@ class genDictionary(object) :
     if 'mutable' in attrs : mod += ' | ::Reflex::MUTABLE' 
     return mod
 #----------------------------------------------------------------------------------
-  def genMCODecl( self, type, name, attrs, args ) :
+  def genMCODecl( self, type, name, attrs, args, buffers ) :
     static = 'static '
     if sys.platform == 'win32' and type in ('constructor', 'destructor'): static = ''
     return static + 'void %s%s(void*, void*, const std::vector<void*>&, void*);' % (type, attrs['id'])
 #----------------------------------------------------------------------------------
-  def genMCOBuild(self, type, name, attrs, args):
+  def genMCOBuild(self, type, name, attrs, args, buffers):
     id       = attrs['id']
     if self.isUnnamedType(self.xref[attrs['context']]['attrs'].get('demangled')) or \
        self.checkAccessibleType(self.xref[attrs['context']]) : return ''
@@ -1983,7 +2763,7 @@ class genDictionary(object) :
     s += self.genCommentProperty(attrs)
     return s
 #----------------------------------------------------------------------------------
-  def genMCODef(self, type, name, attrs, args):
+  def genMCODef(self, type, name, attrs, args, buffers):
     id       = attrs['id']
     cl       = self.genTypeName(attrs['context'],colon=True)
     clt      = string.translate(str(cl), self.transtable)
@@ -2020,15 +2800,15 @@ class genDictionary(object) :
       if returns != 'void' :
         if returns[-1] in ('*',')') and returns.find('::*') == -1 :
           body += iden + '  if (retaddr) *(void**)retaddr = Reflex::FuncToVoidPtr((((%s*)o)->%s)(' % ( cl, name )
-          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
+          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body, buffers)
           body += '));\n' + iden + '  else '
         elif returns[-1] == '&' :
           body += iden + '  if (retaddr) *(void**)retaddr = (void*)&(((%s*)o)->%s)(' % ( cl, name )
-          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
+          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body, buffers)
           body += ');\n' + iden + '  else '
         else :
           body += iden + '  if (retaddr) new (retaddr) (%s)((((%s*)o)->%s)(' % ( returns, cl, name )
-          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
+          head, body = self.genMCOArgs(args, n, len(iden)+2, head, body, buffers)
           body += '));\n' + iden + '  else '
       if returns[-1] == '&' :
         # The seemingly useless '&' below is to work around Microsoft's
@@ -2041,7 +2821,7 @@ class genDictionary(object) :
           body += iden + '  (((%s*)o)->%s)(' % ( cl, name )
       else: 
         body += iden + '  (((%s*)o)->%s)(' % ( cl, name )
-      head, body = self.genMCOArgs(args, n, len(iden)+2, head, body)
+      head, body = self.genMCOArgs(args, n, len(iden)+2, head, body, buffers)
       body += ');\n'
       if ndarg : 
         if n != narg : body += '  }\n'
@@ -2057,9 +2837,57 @@ class genDictionary(object) :
       if 'default' in a : n += 1
     return n
 #----------------------------------------------------------------------------------
-  def genMCOArgs(self, args, narg, pad, head, body):
+  def getFctPrototype(self, xref):
+    return self.getFctPrototype_fromid(xref['id'])
+
+#----------------------------------------------------------------------------------
+  def getFctPrototype_fromid(self, xid):
+    xref = self.xref[xid]
+    name = self.genTypeName(xid)
+    args = self.xref[xid]['subelems']
+    attrs= self.xref[xid]['attrs']
+    
+    returns = ''
+    if 'returns' in xref:
+      returns = self.genTypeName(xref['returns'], enum=True, const=True)
+    demangled = self.xref[xid]['attrs'].get('demangled')
+    if not demangled or not len(demangled):
+      demangled = name
+      pass
+    proto = [returns, name+'(']
+    proto_args = []
+    for i,a in enumerate(args):
+      arg_type = self._resolve_ptr_type(a['type'])
+      arg_type = self.xref[arg_type]
+      arg_name = arg_type['attrs'].get('name', '@@@')
+      arg_str = [arg_name,
+                 a.get('name', '_arg_%d'%i),]
+      if 'default' in a:
+        arg_str.append('=')
+        arg_str.append(a['default'])
+      proto_args.append(' '.join(map(str, arg_str)))
+    proto.append(', '.join(proto_args))
+    proto.append(')')
+    return ' '.join(proto)
+
+#----------------------------------------------------------------------------------
+  def getScopedFullName(self, xid):
+    xref = self.xref[xid]
+    elems= xref['elem']
+    attrs= xref['attrs']
+    name = [attrs['name']]
+    if 'context' in attrs:
+      ctxt = self.getScopedFullName(attrs['context'])
+      if ctxt != '::':
+        name.insert(0, ctxt)
+    return '::'.join(name)
+  
+#----------------------------------------------------------------------------------
+  def genMCOArgs(self, args, narg, pad, head, body, buffers):
     s = ''
     td = ''
+    buffers['cxx_head'] = head = buffers.get('cxx_head', '')
+    buffers['cxx_body'] = body = buffers.get('cxx_body', '')
     for i in range(narg) :
       a = args[i]
       #arg = self.genArgument(a, 0);
@@ -2077,48 +2905,77 @@ class genDictionary(object) :
           argptr = ''
         if len(argnoptr) > 1 and argnoptr[-1] == '&':
           argnoptr = argnoptr[:-1]
-        td += pad*' ' + 'typedef %s RflxDict_arg_td%d%s;\n' % (argnoptr[:argnoptr.index('[')], i, argnoptr[argnoptr.index('['):])
-        arg = 'RflxDict_arg_td%d' % i
+        td += pad*' ' + 'typedef %s GoCxxDict_arg_td%d%s;\n' % (argnoptr[:argnoptr.index('[')], i, argnoptr[argnoptr.index('['):])
+        arg = 'GoCxxDict_arg_td%d' % i
         arg += argptr;
       if arg[-1] == '*' or len(arg) > 7 and arg[-7:] == '* const':
         if arg[-2:] == ':*' or arg[-8:] == ':* const' : # Pointer to data member
-          s += '*(%s*)arg[%d]' % (arg, i )
+          td += pad*' ' +'%s* c_arg_%d = (%s*)arg_%d;\n' % (arg, i, arg, i)
+          #s += '*(%s*)arg_%d' % (arg, i )
+          s += '*c_arg_%d' % i
         else :
-          s += '(%s)arg[%d]' % (arg, i )
+          td += pad*' ' +'%s c_arg_%d = (%s)arg_%d;\n' % (arg, i, arg, i)          
+          #s += '(%s)arg_%d' % (arg, i )
+          s += 'c_arg_%d' % (i, )
       elif arg[-1] == ']' :
-        s += '(%s)arg[%d]' % (arg, i)
+        td += pad*' ' +'%s c_arg_%d = (%s)arg_%d;\n' % (arg, i, arg, i)
+        #s += '(%s)arg_%d' % (arg, i)
+        s += 'c_arg_%d' % (i,)
       elif arg[-1] == ')' or (len(arg) > 7 and arg[-7:] == ') const'): # FIXME, the second check is a hack
         if arg.find('::*') != -1 :  # Pointer to function member
-          s += '*(%s)arg[%d]' %(arg.replace('::*','::**'), i)
+          td += pad*' ' +'%s c_arg_%d = (%s)arg_%d;\n' % (arg.replace('::*','::**'), i)
+          #s += '*(%s)arg_%d' %(arg.replace('::*','::**'), i)
+          s += '*c_arg_%d' % (i,)
         elif (len(arg) > 7  and arg[-7:] == ') const') :
-          s += 'Reflex::VoidPtrToFunc< %s >(arg[%d])' % (arg[:-6].replace('(*)','(* const)'), i) # 2nd part of the hack
+          td += pad*' ' +'GoCxx::VoidPtrToFunc< %s > c_arg_%d = arg_%d;\n' % (arg[:-6].replace('(*)','(* const)'), i) # 2nd part of the hack
+          #s += 'Reflex::VoidPtrToFunc< %s >(arg_%d)' % (arg[:-6].replace('(*)','(* const)'), i) # 2nd part of the hack
+          s += 'c_arg_%d' % (i,)
         else :
-          s += 'Reflex::VoidPtrToFunc< %s >(arg[%d])' % (arg, i )
+          td += pad*' ' +'GoCxx::VoidPtrToFunc< %s > c_arg_%d(arg_%d);\n' % (arg, i, i )
+          #s += 'Reflex::VoidPtrToFunc< %s >(arg_%d)' % (arg, i )
+          s += 'c_arg_%d' % (i,)
       elif arg[-1] == '&' :
-        s += '*(%s*)arg[%d]' % (arg[:-1], i )
+        if self._is_string_like(arg[:-1]):
+          td += pad*' '+'%s c_arg_%s( ((_gostring_*)arg_%d)->p, ((_gostring_*)arg_%d)->n);\n' % (
+            arg[:-1], i, i, i)
+          s += 'c_arg_%d' % (i,)
+            
+        else:
+          td += pad*' ' +'%s* c_arg_%d = (%s*)arg_%d;\n' % (arg[:-1], i, arg[:-1], i )
+          # s += '*(%s*)arg_%d' % (arg[:-1], i )
+          s += '*c_arg_%d' % (i,)
       else :
-        s += '*(%s*)arg[%d]' % (arg, i )
+        if self._is_string_like(arg):
+          td += pad*' '+'%s c_arg_%s( ((_gostring_*)arg_%d)->p, ((_gostring_*)arg_%d)->n);\n' % (
+            arg[:-1], i, i, i)
+          s += 'c_arg_%d' % (i,)
+        else:
+          td += pad*' ' +'%s* c_arg_%d = (%s*)arg_%d;\n' % (arg, i, arg, i)
+          # s += '*(%s*)arg_%d' % (arg, i )
+          s += '*c_arg_%d' % (i,)
       if i != narg - 1 : s += ',\n' + (pad+2)*' '
+    buffers['cxx_head'] += td
+    buffers['cxx_body'] += s
     return head + td, body + s
 #----------------------------------------------------------------------------------
-  def genMethodDecl(self, attrs, args):
-    return self.genMCODecl( 'method', '', attrs, args )
+  def genMethodDecl(self, attrs, args, buffers):
+    return self.genMCODecl( 'method', '', attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genMethodBuild(self, attrs, args):
-    return self.genMCOBuild( 'method', attrs['name'], attrs, args )
+  def genMethodBuild(self, attrs, args, buffers):
+    return self.genMCOBuild( 'method', attrs['name'], attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genMethodDef(self, attrs, args):
-    return self.genMCODef( 'method', attrs['name'], attrs, args )
+  def genMethodDef(self, attrs, args, buffers):
+    return self.genMCODef( 'method', attrs['name'], attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConstructorDecl(self, attrs, args):
-    return self.genMCODecl( 'constructor', '', attrs, args )
+  def genConstructorDecl(self, attrs, args, buffers):
+    return self.genMCODecl( 'constructor', '', attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConstructorBuild(self, attrs, args):
+  def genConstructorBuild(self, attrs, args, buffers):
     name = attrs.get('name')
     if not name : name = self.xref[attrs['context']]['attrs']['demangled'].split('::')[-1]
-    return self.genMCOBuild( 'constructor', name, attrs, args )
+    return self.genMCOBuild( 'constructor', name, attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConstructorDef(self, attrs, args):
+  def genConstructorDef(self, attrs, args, buffers):
     cl  = self.genTypeName(attrs['context'], colon=True)
     clt = string.translate(str(cl), self.transtable)
     id  = attrs['id']
@@ -2139,10 +2996,10 @@ class genDictionary(object) :
           if n == narg-ndarg :  body += '  if ( arg.size() == %d ) {\n  ' % n
           else               :  body += '  else if ( arg.size() == %d ) { \n  ' % n
         body += '  if (retaddr) *(void**)retaddr = ::new(mem) %s(' % ( cl )
-        head, body = self.genMCOArgs(args, n, 4, head, body)
+        head, body = self.genMCOArgs(args, n, 4, head, body, buffers)
         body += ');\n'
         body += '  else ::new(mem) %s(' % ( cl )
-        head, body = self.genMCOArgs(args, n, 4, head, body)
+        head, body = self.genMCOArgs(args, n, 4, head, body, buffers)
         body += ');\n'
         if ndarg : 
           if n != narg : body += '  }\n'
@@ -2150,7 +3007,7 @@ class genDictionary(object) :
     body += '}\n'
     return head + body
 #----------------------------------------------------------------------------------
-  def genDestructorDef(self, attrs, childs):
+  def genDestructorDef(self, attrs, childs, buffers):
     cl = self.genTypeName(attrs['context'])
     static = ''
     dtorscope = ''
@@ -2164,7 +3021,7 @@ class genDictionary(object) :
       # unnamed; can't call.
       return dtorimpl + '  // unnamed, cannot call destructor\n}'
 #----------------------------------------------------------------------------------
-  def genDestructorBuild(self, attrs, childs):
+  def genDestructorBuild(self, attrs, childs, buffers):
     if self.isUnnamedType(self.xref[attrs['context']]['attrs'].get('demangled')) or \
        self.checkAccessibleType(self.xref[attrs['context']]) : return ''
     mod = self.genModifier(attrs,None)
@@ -2173,29 +3030,29 @@ class genDictionary(object) :
     s += self.genCommentProperty(attrs)
     return s
 #----------------------------------------------------------------------------------
-  def genOperatorMethodDecl( self, attrs, args ) :
+  def genOperatorMethodDecl( self, attrs, args, buffers ) :
     if attrs['name'][0].isalpha() : name = 'operator '+ attrs['name']
     else                          : name = 'operator' + attrs['name'] 
-    return self.genMCODecl( 'operator', name, attrs, args )    
+    return self.genMCODecl( 'operator', name, attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genOperatorMethodBuild( self, attrs, args ) :
+  def genOperatorMethodBuild( self, attrs, args, buffers ) :
     if attrs['name'][0].isalpha() : name = 'operator '+ attrs['name']
     else                          : name = 'operator' + attrs['name'] 
-    return self.genMCOBuild( 'operator', name, attrs, args )    
+    return self.genMCOBuild( 'operator', name, attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genOperatorMethodDef( self, attrs, args ) :
+  def genOperatorMethodDef( self, attrs, args, buffers ) :
     if attrs['name'][0].isalpha() : name = 'operator '+ attrs['name']
     else                          : name = 'operator' + attrs['name']
     if name[-1] == '>' and name.find('<') != -1 : name = name[:name.find('<')]
-    return self.genMCODef( 'operator', name, attrs, args )    
+    return self.genMCODef( 'operator', name, attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConverterDecl( self, attrs, args ) :
-    return self.genMCODecl( 'converter', 'operator '+attrs['name'], attrs, args )    
+  def genConverterDecl( self, attrs, args, buffers ) :
+    return self.genMCODecl( 'converter', 'operator '+attrs['name'], attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConverterBuild( self, attrs, args ) :
-    return self.genMCOBuild( 'converter', 'operator '+self.genTypeName(attrs['returns'],enum=True,const=False), attrs, args )    
+  def genConverterBuild( self, attrs, args, buffers ) :
+    return self.genMCOBuild( 'converter', 'operator '+self.genTypeName(attrs['returns'],enum=True,const=False), attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genConverterDef( self, attrs, args ) :
+  def genConverterDef( self, attrs, args, buffers ) :
     # If this is a conversion operator to pointer to function member we will need
     # to create a typedef for the typename which is needed in the stub function
     tdf = 'operator '+self.genTypeName(attrs['returns'])
@@ -2204,15 +3061,20 @@ class genDictionary(object) :
       t2 = self.xref[t1['attrs']['type']]
       if t2['elem'] == 'MethodType':
         tdf = self.genTypeName(attrs['returns']).replace('*)(','* TDF%s)('%attrs['id'])
-    return self.genMCODef( 'converter', tdf, attrs, args )    
+    return self.genMCODef( 'converter', tdf, attrs, args, buffers )
 #----------------------------------------------------------------------------------
-  def genEnumValue(self, attrs):
+  def genEnumValue(self, attrs, buffers):
     return '%s = %s' % (attrs['name'], attrs['init'])
 #----------------------------------------------------------------------------------
-  def genBaseClassBuild(self, clf, b ):
+  def genBaseClassBuild(self, clf, b, buffers ):
     mod = '::Reflex::' + b['access'].upper()
-    if 'virtual' in b and b['virtual'] == '1' : mod = '::Reflex::VIRTUAL | ' + mod
-    return '  .AddBase(%s, ::Reflex::BaseOffset< %s, %s >::Get(), %s)' %  (self.genTypeID(b['type']), clf, self.genTypeName(b['type'],colon=True), mod)
+    if 'virtual' in b and b['virtual'] == '1':
+      mod = '::Reflex::VIRTUAL | ' + mod
+    return '  .AddBase(%s, ::Reflex::BaseOffset< %s, %s >::Get(), %s)' %  (
+      self.genTypeID(b['type']),
+      clf,
+      self.genTypeName(b['type'],colon=True),
+      mod)
 #----------------------------------------------------------------------------------
   def enhanceClass(self, attrs):
     if self.isUnnamedType(attrs.get('demangled')) or self.checkAccessibleType(self.xref[attrs['id']]) : return
@@ -2285,12 +3147,12 @@ class genDictionary(object) :
       s += '}\n'
     return s
 #----BasesMap stuff--------------------------------------------------------
-  def genGetBasesTableDecl( self, attrs, args ) :
+  def genGetBasesTableDecl( self, attrs, args, buffers ) :
     return 'static void method%s( void*, void*, const std::vector<void*>&, void* ); ' % (attrs['id'])
-  def genGetBasesTableBuild( self, attrs, args ) :
+  def genGetBasesTableBuild( self, attrs, args, buffers ) :
     mod = self.genModifier(attrs, None)
     return '  .AddFunctionMember<void*(void)>(Reflex::Literal("__getBasesTable"), method%s, 0, 0, %s)' % (attrs['id'], mod)
-  def genGetBasesTableDef( self, attrs, args ) :
+  def genGetBasesTableDef( self, attrs, args, buffers ) :
     cid      = attrs['context']
     cl       = self.genTypeName(cid, colon=True)
     clt      = string.translate(str(cl), self.transtable)
@@ -2334,13 +3196,13 @@ class genDictionary(object) :
     elif not opnewa and plopnewa : newa = '_p'
     return (newc, newa)
 #----Constructor/Destructor stuff--------------------------------------------------------
-  def genGetNewDelFunctionsDecl( self, attrs, args ) :
+  def genGetNewDelFunctionsDecl( self, attrs, args, buffers ) :
     return 'static void method%s( void*, void*, const std::vector<void*>&, void* ); ' % (attrs['id'])
-  def genGetNewDelFunctionsBuild( self, attrs, args ) :
+  def genGetNewDelFunctionsBuild( self, attrs, args, buffers ) :
     cid      = attrs['context']
     mod = self.genModifier(attrs, None)  
     return '  .AddFunctionMember<void*(void)>(Reflex::Literal("__getNewDelFunctions"), method_newdel%s, 0, 0, %s)' % (cid, mod)
-  def genGetNewDelFunctionsDef( self, attrs, args ) :
+  def genGetNewDelFunctionsDef( self, attrs, args, buffers ) :
     cid      = attrs['context']
     cl       = self.genTypeName(cid, colon=True)
     clt      = string.translate(str(cl), self.transtable)
@@ -2826,3 +3688,4 @@ def Class_VersionImplementation(selclasses, self):
         attrs['extra']['ClassVersion'] = '!RAW!' + clname + '::Class_Version()'
       else:
         attrs['extra']={'ClassVersion' : '!RAW!' + clname + '::Class_Version()'}
+

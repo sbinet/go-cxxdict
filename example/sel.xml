@@ -1,0 +1,21 @@
+<lcgdict>
+
+  <class pattern="T*"/>
+  <function pattern="T*"/>
+  <function pattern="Math*"/>
+
+  <class name="Foo"/>
+  <class name="IFoo"/>
+  <class pattern="NS*" />
+  <class pattern="TT*" />
+  <class pattern="Base*" />
+  <class pattern="Alg*" />
+  <class pattern="With*Base*" />
+
+  <enum pattern="*Enum*" />
+
+  <exclusion>
+    <class pattern="TSubString*" />
+  </exclusion>
+
+</lcgdict>

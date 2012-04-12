@@ -1,0 +1,39 @@
+# use glob syntax.
+syntax: glob
+
+*.elc
+*.pyc
+*~
+*.root
+*.ntup
+*.so
+*.o
+*.a
+*.dat
+fort.*
+__build__*
+__install__*
+install_area/*
+ext/*
+\#*
+.lock-wafbuild
+.lock-wscript
+.waf-*
+.waf3-*
+.svn/*
+
+### cmt-related stuff -------
+InstallArea
+i686-slc5-gcc43-*
+genConf
+*.history
+*.stamp
+cmt/cleanup.*sh
+cmt/setup.*sh
+cmt/Makefile
+cmt/version.cmt
+### -------------------------
+
+# switch to regexp syntax.
+syntax: regexp
+^\.pc/

@@ -127,7 +127,7 @@ class genreflex:
       opts, args = getopt.getopt(options, 'ho:s:c:I:U:D:PC', \
       ['help','debug=', 'output=','selection_file=','pool','dataonly','interpreteronly','deep','gccxmlpath=',
        'capabilities=','rootmap=','rootmap-lib=','comments','iocomments','no_membertypedefs',
-       'fail_on_warnings', 'quiet', 'gccxmlopt=', 'reflex', 'split=','no_templatetypedefs','gccxmlpost='])
+       'fail_on_warnings', 'quiet', 'gccxmlopt=', 'reflex', 'split=','no_templatetypedefs','gccxmlpost=','package='])
     except getopt.GetoptError, e:
       print "--->> genreflex: ERROR:",e
       self.usage(2)
@@ -180,6 +180,8 @@ class genreflex:
         self.gccxmlopt += a +' '
       if o in ('--gccxmlpost',):
         self.gccxmlpost = a
+      if o in ('--package',):
+        self.opts['package'] = a
       if o in ('-c', '--capabilities'):
         self.capabilities = a
       if o in ('--rootmap',):
@@ -354,17 +356,12 @@ class genreflex:
       functions = dg.selfunctions(self.selector)
       enums     = dg.selenums(self.selector)
       variables = dg.selvariables(self.selector)
-      try:
-        if self.selector :
-          cnames, warnings, errors = dg.generate(dicfile, classes, functions, enums, variables, gccxmlinfo,
-                                                 self.selector.io_read_rules, self.selector.io_readraw_rules )
-        else :
-          cnames, warnings, errors = dg.generate(dicfile, classes, functions, enums, variables, gccxmlinfo)
-        if errors or (warnings and self.opts.get('fail_on_warnings', False)): os.remove(dicfile)
-      except:
-        # remove output file even if evil things happened
-        os.remove(dicfile)
-        raise
+      if self.selector :
+        cnames, warnings, errors = dg.generate(dicfile, classes, functions, enums, variables, gccxmlinfo,
+                                               self.selector.io_read_rules, self.selector.io_readraw_rules )
+      else :
+        cnames, warnings, errors = dg.generate(dicfile, classes, functions, enums, variables, gccxmlinfo)
+      if errors or (warnings and self.opts.get('fail_on_warnings', False)): os.remove(dicfile)
       total_errors += errors
       total_warnings += warnings
     #------------Produce Seal Capabilities source file------
@@ -403,8 +400,7 @@ class genreflex:
     if total_errors:
       sys.exit(1)
     #------------Exit with status if warnings --------------
-    if total_warnings and self.opts.get('fail_on_warnings',False) :
-      os.remove(dicfile)
+    if total_warnings and self.opts.get('fail_on_warnings',False) : 
       print '--->> genreflex: ERROR: Exiting with error due to %d warnings ( --fail_on_warnings enabled )' % total_warnings
       sys.exit(1)
 #---------------------------------------------------------------------
