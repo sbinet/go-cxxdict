@@ -6,9 +6,6 @@ export GOCXXDICTTESTROOT=${TMPDIR-/tmp}/go-cxxdict-test
 export GOPATH=${GOCXXDICTTESTROOT}/go:${GOPATH}
 export LD_LIBRARY_PATH=${GOCXXDICTTESTROOT}/lib:${LD_LIBRARY_PATH}
 
-export REFLEX_INCLUDES=`root-config --cflags`
-export REFLEX_LINKOPTS=`root-config --libs`
-
 function clean_up() {
     /bin/rm -rf ${GOCXXDICTTESTROOT}
     /bin/rm -rf mylib_cxxdict.cxx
@@ -58,8 +55,6 @@ function gen_cxxdict() {
 function compile_cxxdict() {
     $CXX -O2 -shared -fPIC \
         -I${GOCXXDICTTESTROOT}/include \
-        ${REFLEX_INCLUDES} \
-        ${REFLEX_LINKOPTS} -lReflex \
         -o ${GOCXXDICTTESTROOT}/lib/libmylibpkg.so \
         mylibpkg.cxx || return 1
 
