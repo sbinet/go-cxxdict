@@ -849,7 +849,7 @@ class genDictionary(object) :
         f_buffer += stubs
         f_buffer += scons
         f_shadow += self.genClassShadow(c)
-        print 'class:',className
+        #print 'class:',className
         ## print '+'*80
         ## import pprint
         ## pprint.pprint(c)
@@ -1480,9 +1480,9 @@ class genDictionary(object) :
 
     members = filter(self.memberfilter, members)  # Eliminate problematic members
 
-    if not self.quiet:
-      print 'gendict:: genClassDict: clf:',clf,'cls:',cls,'clt:',clt,"=>",\
-            self._gen_go_name_fromid(attrs['id'])
+    ## if not self.quiet:
+    ##   print 'gendict:: genClassDict: clf:',clf,'cls:',cls,'clt:',clt,"=>",\
+    ##         self._gen_go_name_fromid(attrs['id'])
       
     # Fill the different streams sc: constructor, ss: stub functions
     sc = ''
@@ -2223,8 +2223,6 @@ class genDictionary(object) :
 #----------------------------------------------------------------------------------
   def genFunctionsStubs(self, selfunctions, buffers) :
     s = ''
-    if not self.quiet:
-      print 'gendict: genFunctionsStubs: first pass...'
     # first pass to capture the functions which are overloaded or have default args...
     for f in selfunctions :
       id   = f['id']
@@ -2291,8 +2289,6 @@ class genDictionary(object) :
           )
       pass
     
-    if not self.quiet:
-      print 'gendict: genFunctionsStubs: second pass...'
     # second pass... the real deal.
     for f in selfunctions :
       id   = f['id']
@@ -2307,7 +2303,7 @@ class genDictionary(object) :
       demangled = self.xref[id]['attrs'].get('demangled')
       if not demangled or not len(demangled):
         demangled = name
-      if not self.quiet : print  'function '+ demangled, "[%s]" % (fct_scoped_name, )
+      if not self.quiet : print  'function '+ demangled
 
       ndarg = self.getDefaultArgs(args)
       narg  = len(args)

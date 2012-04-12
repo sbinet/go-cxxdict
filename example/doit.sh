@@ -38,7 +38,6 @@ function gen_cxxdict() {
     ${GENREFLEX} mylib.h -s ./sel.xml \
         --output mylib_cxxdict.cxx \
         --package mylibpkg \
-        --debug \
         --fail_on_warnings \
         --gccxmlopt=-m64 \
         -I${GOCXXDICTTESTROOT}/include \
