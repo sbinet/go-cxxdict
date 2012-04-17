@@ -988,6 +988,10 @@ class genDictionary(object) :
     return
 #----------------------------------------------------------------------------------
   def isUnnamedType(self, name) :
+    # ellipsis would screw us...
+    if not name:
+      name = ""
+    name = name.replace('...', '')
     if name and (name.find('.') != -1 or name.find('$') != -1): return 1
     else                                            : return 0
 #----------------------------------------------------------------------------------
@@ -1913,8 +1917,15 @@ class genDictionary(object) :
 
     if n == 'char' and self.xref[cxx_id]['elem'] == 'PointerType':
       return True
+
+    try:
+      n = self.xref[cxx_id]['attrs']['name']
+    except KeyError:
+      try:
+        n = self.xref[raw_cxx_id]['attrs']['name']
+      except KeyError:
+        raise
     
-    n = self.xref[cxx_id]['attrs']['name']
     if n in ('const char*', 'char const*'):
       return True
     return False
@@ -1933,7 +1944,14 @@ class genDictionary(object) :
     if n == 'char' and self.xref[cxx_id]['elem'] == 'PointerType':
       return True
 
-    n = self.xref[cxx_id]['attrs']['name']
+    try:
+      n = self.xref[cxx_id]['attrs']['name']
+    except KeyError:
+      try:
+        n = self.xref[raw_cxx_id]['attrs']['name']
+      except KeyError:
+        raise
+    
     if n in ('const char*', 'char const*'):
       return True
     return False
@@ -2842,7 +2860,7 @@ class genDictionary(object) :
     name = self.genTypeName(xid)
     args = self.xref[xid]['subelems']
     attrs= self.xref[xid]['attrs']
-    
+
     returns = ''
     if 'returns' in xref:
       returns = self.genTypeName(xref['returns'], enum=True, const=True)

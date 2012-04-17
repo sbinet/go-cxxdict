@@ -217,3 +217,5 @@ public:
 private:
   void some_private_method() { std::cout << "::private()\n"; }
 };
+
+// #include <cblas.h>

@@ -18,4 +18,6 @@
     <class pattern="TSubString*" />
   </exclusion>
 
+  <function pattern="cblas*" />
+  <enum pattern="*CBLAS_*" />
 </lcgdict>
