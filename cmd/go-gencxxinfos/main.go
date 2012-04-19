@@ -1,5 +1,5 @@
 // go-gencxxinfos creates the C++ types registry from some source (gccxml, 
-// clang) and save it under some form.
+// clang) and saves it under some form.
 package main
 
 import (
