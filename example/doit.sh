@@ -106,7 +106,7 @@ function run() {
 
     echo ":: done."
     echo ":::::::::::::::::::::::::::::::"
-    clean_up
+    #clean_up
     return 0
 }
 
