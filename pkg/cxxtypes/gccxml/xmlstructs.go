@@ -6,6 +6,14 @@ import (
 	"strings"
 )
 
+// helper function to "convert" a 0|1 string into a boolean
+func to_bool(v string) bool {
+	if v == "" || v == "0" {
+		return false
+	}
+	return true
+}
+
 type xmlTree struct {
 	XMLName xml.Name `xml:"GCC_XML"`
 
@@ -63,131 +71,11 @@ func (x *xmlTree) printStats() {
 //}
 
 func (x *xmlTree) id() string {
-	return "0"
+	return "__0__"
 }
 
 // idDB associates the gccxml string id of a type to its parsed xmlFoobar struct
 type idDB map[string]i_id
-
-// collectIds collects all the ids extracted from the gccxml file
-func collectIds(x *xmlTree) idDB {
-	db := make(idDB, 128)
-
-	for i,_ := range x.Namespaces {
-		db[x.Namespaces[i].Id] = x.Namespaces[i]
-	}
-
-	for i,_ := range x.Arrays {
-		db[x.Arrays[i].Id] = x.Arrays[i]
-	}
-
-	for i,_ := range x.Classes {
-		db[x.Classes[i].Id] = x.Classes[i]
-	}
-	for i,_ := range x.Constructors {
-		db[x.Constructors[i].Id] = x.Constructors[i]
-	}
-	for i,_ := range x.Converters {
-		db[x.Converters[i].Id] = x.Converters[i]
-	}
-
-	for i,_ := range x.CvQualifiedTypes {
-		db[x.CvQualifiedTypes[i].Id] = x.CvQualifiedTypes[i]
-	}
-
-	for i,_ := range x.Destructors {
-		db[x.Destructors[i].Id] = x.Destructors[i]
-	}
-
-	for i,_ := range x.Enumerations {
-		db[x.Enumerations[i].Id] = x.Enumerations[i]
-	}
-
-	for i,_ := range x.Fields {
-		db[x.Fields[i].Id] = x.Fields[i]
-	}
-
-	for i,_ := range x.Files {
-		db[x.Files[i].Id] = x.Files[i]
-	}
-
-	for i,_ := range x.Functions {
-		db[x.Functions[i].Id] = x.Functions[i]
-	}
-
-	for i,_ := range x.FunctionTypes {
-		db[x.FunctionTypes[i].Id] = x.FunctionTypes[i]
-	}
-
-	for i,_ := range x.FundamentalTypes {
-		db[x.FundamentalTypes[i].Id] = x.FundamentalTypes[i]
-	}
-
-	for i,_ := range x.Methods {
-		db[x.Methods[i].Id] = x.Methods[i]
-	}
-
-	for i,_ := range x.MethodTypes {
-		db[x.MethodTypes[i].Id] = x.MethodTypes[i]
-	}
-
-	for i,_ := range x.Namespaces {
-		db[x.Namespaces[i].Id] = x.Namespaces[i]
-	}
-
-	for i,_ := range x.NamespaceAliases {
-		db[x.NamespaceAliases[i].Id] = x.NamespaceAliases[i]
-	}
-
-	for i,_ := range x.OperatorFunctions {
-		db[x.OperatorFunctions[i].Id] = x.OperatorFunctions[i]
-	}
-
-	for i,_ := range x.OperatorMethods {
-		db[x.OperatorMethods[i].Id] = x.OperatorMethods[i]
-	}
-
-	for i,_ := range x.OffsetTypes {
-		db[x.OffsetTypes[i].Id] = x.OffsetTypes[i]
-	}
-
-	for i,_ := range x.PointerTypes {
-		db[x.PointerTypes[i].Id] = x.PointerTypes[i]
-	}
-
-	for i,_ := range x.ReferenceTypes {
-		db[x.ReferenceTypes[i].Id] = x.ReferenceTypes[i]
-	}
-
-	for i,_ := range x.Structs {
-		db[x.Structs[i].Id] = x.Structs[i]
-	}
-
-	for i,_ := range x.Typedefs {
-		db[x.Typedefs[i].Id] = x.Typedefs[i]
-	}
-
-	for i,_ := range x.Unimplementeds {
-		db[x.Unimplementeds[i].Id] = x.Unimplementeds[i]
-	}
-
-	for i,_ := range x.Unions {
-		db[x.Unions[i].Id] = x.Unions[i]
-	}
-
-	for i,_ := range x.Variables {
-		db[x.Variables[i].Id] = x.Variables[i]
-	}
-	return db
-}
-
-type i_id interface {
-	id() string
-}
-
-type i_align interface {
-	align() uintptr
-}
 
 type xmlArgument struct {
 	Attributes string `xml:"attributes,attr"`
@@ -216,6 +104,12 @@ type xmlArray struct {
 
 func (x *xmlArray) id() string {
 	return x.Id
+}
+
+func (x *xmlArray) name() string {
+	t := g_ids[x.Type]
+	tt := t.(i_name)
+	return fmt.Sprintf("%s[%s]", tt.name(), x.Size)
 }
 
 type xmlBase struct {
@@ -253,6 +147,10 @@ type xml_record struct {
 
 func (x *xml_record) id() string {
 	return x.Id
+}
+
+func (x *xml_record) name() string {
+	return x.Name
 }
 
 type xmlClass struct {
@@ -321,6 +219,11 @@ func (x *xmlCvQualifiedType) id() string {
 	return x.Id
 }
 
+func (x *xmlCvQualifiedType) name() string {
+	t := g_ids[x.Type]
+	return t.(i_name).name()
+}
+
 type xmlDestructor struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Artifical  string `xml:"artifical,attr"`  // implied
@@ -368,6 +271,10 @@ func (x *xmlEnumeration) id() string {
 	return x.Id
 }
 
+func (x *xmlEnumeration) name() string {
+	return x.Name
+}
+
 type xmlField struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Attributes string `xml:"attributes,attr"` // implied
@@ -389,6 +296,10 @@ func (x *xmlField) id() string {
 	return x.Id
 }
 
+func (x *xmlField) name() string {
+	return x.Name
+}
+
 type xmlFile struct {
 	Id   string `xml:"id,attr"`
 	Name string `xml:"name,attr"`
@@ -396,6 +307,10 @@ type xmlFile struct {
 
 func (x *xmlFile) id() string {
 	return x.Id
+}
+
+func (x *xmlFile) name() string {
+	return x.Name
 }
 
 type xmlFunction struct {
@@ -419,6 +334,10 @@ type xmlFunction struct {
 
 func (x *xmlFunction) id() string {
 	return x.Id
+}
+
+func (x *xmlFunction) name() string {
+	return x.Name
 }
 
 type xmlFunctionType struct {
@@ -451,6 +370,10 @@ func (x *xmlFundamentalType) String() string {
 
 func (x *xmlFundamentalType) id() string {
 	return x.Id
+}
+
+func (x *xmlFundamentalType) name() string {
+	return x.Name
 }
 
 type xmlMethod struct {
@@ -574,6 +497,16 @@ func (x *xmlPointerType) id() string {
 	return x.Id
 }
 
+func (x *xmlPointerType) name() string {
+	t := g_ids[x.Type]
+	switch tt := t.(type) {
+	case i_name:
+		return tt.name()+"*"
+	default:
+	}
+	return "<unnamed>*"
+}
+
 type xmlReferenceType struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"` // implied
@@ -603,6 +536,10 @@ type xmlTypedef struct {
 
 func (x *xmlTypedef) id() string {
 	return x.Id
+}
+
+func (x *xmlTypedef) name() string {
+	return x.Name
 }
 
 type xmlUnimplemented struct {
@@ -638,6 +575,10 @@ type xmlUnion struct {
 
 func (x *xmlUnion) id() string {
 	return x.Id
+}
+
+func (x *xmlUnion) name() string {
+	return x.Name
 }
 
 type xmlVariable struct {
@@ -703,4 +644,5 @@ func (x xmlFunction) String() string {
 		len(x.Arguments),
 		x.Ellipsis)
 }
+
 
