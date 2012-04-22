@@ -92,6 +92,10 @@ func (x *xmlArgument) id() string {
 	return x.Id
 }
 
+func (x *xmlArgument) name() string {
+	return x.Name
+}
+
 type xmlArray struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"`
@@ -181,6 +185,10 @@ func (x *xmlConstructor) id() string {
 	return x.Id
 }
 
+func (x *xmlConstructor) name() string {
+	return x.Name
+}
+
 type xmlConverter struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Attributes string `xml:"attributes,attr"` // implied
@@ -202,6 +210,10 @@ type xmlConverter struct {
 
 func (x *xmlConverter) id() string {
 	return x.Id
+}
+
+func (x *xmlConverter) name() string {
+	return x.Name
 }
 
 type xmlCvQualifiedType struct {
@@ -246,9 +258,17 @@ func (x *xmlDestructor) id() string {
 	return x.Id
 }
 
+func (x *xmlDestructor) name() string {
+	return x.Name
+}
+
 type xmlEnumValue struct {
 	Init string `xml:"init,attr"`
 	Name string `xml:"name,attr"`
+}
+
+func (x *xmlEnumValue) name() string {
+	return x.Name
 }
 
 type xmlEnumeration struct {
@@ -404,6 +424,10 @@ func (x *xmlMethod) id() string {
 	return x.Id
 }
 
+func (x *xmlMethod) name() string {
+	return x.Name
+}
+
 type xmlMethodType struct {
 	Attributes string `xml:"attributes,attr"` // implied
 	BaseType   string `xml:"basetype,attr"`
@@ -432,6 +456,10 @@ func (x *xmlNamespace) id() string {
 	return x.Id
 }
 
+func (x *xmlNamespace) name() string {
+	return x.Name
+}
+
 type xmlNamespaceAlias struct {
 	Context   string `xml:"context,attr"`
 	Demangled string `xml:"demangled,attr"`
@@ -443,6 +471,10 @@ type xmlNamespaceAlias struct {
 
 func (x *xmlNamespaceAlias) id() string {
 	return x.Id
+}
+
+func (x *xmlNamespaceAlias) name() string {
+	return x.Name
 }
 
 type xmlOffsetType struct {
@@ -479,6 +511,10 @@ type xmlOperatorFunction struct {
 
 func (x *xmlOperatorFunction) id() string {
 	return x.Id
+}
+
+func (x *xmlOperatorFunction) name() string {
+	return x.Name
 }
 
 type xmlOperatorMethod struct {
@@ -602,6 +638,10 @@ func (x *xmlVariable) id() string {
 	return x.Id
 }
 
+func (x *xmlVariable) name() string {
+	return x.Name
+}
+
 func (x xmlNamespace) String() string {
 	return fmt.Sprintf(`Namespace{%s}`, x.Name)
 }
@@ -645,4 +685,9 @@ func (x xmlFunction) String() string {
 		x.Ellipsis)
 }
 
+// utils ---
+
+// patchTemplateName
+func patchTemplateName(node i_id) {
+}
 
