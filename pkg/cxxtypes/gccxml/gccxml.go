@@ -42,6 +42,7 @@ func LoadTypes(fname string) error {
 
 	fmt.Printf("ids: %d\n", len(g_ids))
 
+	root.fixup()
 
 	// 2) applies fixes to xmlFoobar structs.
 	v = func(node i_id) bool {
@@ -49,6 +50,7 @@ func LoadTypes(fname string) error {
 		if nn != node {
 			panic("oops")
 		}
+		patchTemplateName(node)
 		switch nn := node.(type) {
 		case i_name:
 			name := nn.name()

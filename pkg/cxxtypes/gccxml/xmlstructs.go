@@ -66,6 +66,10 @@ func (x *xmlTree) printStats() {
 	}
 }
 
+// fixup fixes a few of the "features" of GCC-XML data
+func (x *xmlTree) fixup() {
+}
+
 //func (x *xmlTree) visit(node i_id) i_visitor {
 //	return nil
 //}
@@ -96,6 +100,10 @@ func (x *xmlArgument) name() string {
 	return x.Name
 }
 
+func (x *xmlArgument) set_name(n string) {
+	x.Name = n
+}
+
 type xmlArray struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"`
@@ -114,6 +122,10 @@ func (x *xmlArray) name() string {
 	t := g_ids[x.Type]
 	tt := t.(i_name)
 	return fmt.Sprintf("%s[%s]", tt.name(), x.Size)
+}
+
+func (x *xmlArray) set_name(n string) {
+	panic("fixme: can set name of an array yet")
 }
 
 type xmlBase struct {
@@ -157,6 +169,10 @@ func (x *xml_record) name() string {
 	return x.Name
 }
 
+func (x *xml_record) set_name(n string) {
+	x.Name = n
+}
+
 type xmlClass struct {
 	xml_record
 }
@@ -189,6 +205,10 @@ func (x *xmlConstructor) name() string {
 	return x.Name
 }
 
+func (x *xmlConstructor) set_name(n string) {
+	x.Name = n
+}
+
 type xmlConverter struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Attributes string `xml:"attributes,attr"` // implied
@@ -216,6 +236,10 @@ func (x *xmlConverter) name() string {
 	return x.Name
 }
 
+func (x *xmlConverter) set_name(n string) {
+	x.Name = n
+}
+
 type xmlCvQualifiedType struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"` // implied
@@ -234,6 +258,10 @@ func (x *xmlCvQualifiedType) id() string {
 func (x *xmlCvQualifiedType) name() string {
 	t := g_ids[x.Type]
 	return t.(i_name).name()
+}
+
+func (x *xmlCvQualifiedType) set_name(n string) {
+	panic("fixme: can set the name of a cv-qualified type - yet")
 }
 
 type xmlDestructor struct {
@@ -262,6 +290,10 @@ func (x *xmlDestructor) name() string {
 	return x.Name
 }
 
+func (x *xmlDestructor) set_name(n string) {
+	x.Name = n
+}
+
 type xmlEnumValue struct {
 	Init string `xml:"init,attr"`
 	Name string `xml:"name,attr"`
@@ -269,6 +301,10 @@ type xmlEnumValue struct {
 
 func (x *xmlEnumValue) name() string {
 	return x.Name
+}
+
+func (x *xmlEnumValue) set_name(n string) {
+	x.Name = n
 }
 
 type xmlEnumeration struct {
@@ -293,6 +329,10 @@ func (x *xmlEnumeration) id() string {
 
 func (x *xmlEnumeration) name() string {
 	return x.Name
+}
+
+func (x *xmlEnumeration) set_name(n string) {
+	x.Name = n
 }
 
 type xmlField struct {
@@ -320,6 +360,10 @@ func (x *xmlField) name() string {
 	return x.Name
 }
 
+func (x *xmlField) set_name(n string) {
+	x.Name = n
+}
+
 type xmlFile struct {
 	Id   string `xml:"id,attr"`
 	Name string `xml:"name,attr"`
@@ -331,6 +375,10 @@ func (x *xmlFile) id() string {
 
 func (x *xmlFile) name() string {
 	return x.Name
+}
+
+func (x *xmlFile) set_name(n string) {
+	x.Name = n
 }
 
 type xmlFunction struct {
@@ -358,6 +406,10 @@ func (x *xmlFunction) id() string {
 
 func (x *xmlFunction) name() string {
 	return x.Name
+}
+
+func (x *xmlFunction) set_name(n string) {
+	x.Name = n
 }
 
 type xmlFunctionType struct {
@@ -396,6 +448,10 @@ func (x *xmlFundamentalType) name() string {
 	return x.Name
 }
 
+func (x *xmlFundamentalType) set_name(n string) {
+	x.Name = n
+}
+
 type xmlMethod struct {
 	Access      string `xml:"access,attr"`     // default "public"
 	Attributes  string `xml:"attributes,attr"` // implied
@@ -424,8 +480,8 @@ func (x *xmlMethod) id() string {
 	return x.Id
 }
 
-func (x *xmlMethod) name() string {
-	return x.Name
+func (x *xmlMethod) set_name(n string) {
+	x.Name = n
 }
 
 type xmlMethodType struct {
@@ -460,6 +516,10 @@ func (x *xmlNamespace) name() string {
 	return x.Name
 }
 
+func (x *xmlNamespace) set_name(n string) {
+	x.Name = n
+}
+
 type xmlNamespaceAlias struct {
 	Context   string `xml:"context,attr"`
 	Demangled string `xml:"demangled,attr"`
@@ -475,6 +535,10 @@ func (x *xmlNamespaceAlias) id() string {
 
 func (x *xmlNamespaceAlias) name() string {
 	return x.Name
+}
+
+func (x *xmlNamespaceAlias) set_name(n string) {
+	x.Name = n
 }
 
 type xmlOffsetType struct {
@@ -517,6 +581,10 @@ func (x *xmlOperatorFunction) name() string {
 	return x.Name
 }
 
+func (x *xmlOperatorFunction) set_name(n string) {
+	x.Name = n
+}
+
 type xmlOperatorMethod struct {
 	xmlMethod
 }
@@ -541,6 +609,10 @@ func (x *xmlPointerType) name() string {
 	default:
 	}
 	return "<unnamed>*"
+}
+
+func (x *xmlPointerType) set_name(n string) {
+	panic("fixme: can set a name for a pointer-type - yet")
 }
 
 type xmlReferenceType struct {
@@ -576,6 +648,10 @@ func (x *xmlTypedef) id() string {
 
 func (x *xmlTypedef) name() string {
 	return x.Name
+}
+
+func (x *xmlTypedef) set_name(n string) {
+	x.Name = n
 }
 
 type xmlUnimplemented struct {
@@ -617,6 +693,10 @@ func (x *xmlUnion) name() string {
 	return x.Name
 }
 
+func (x *xmlUnion) set_name(n string) {
+	x.Name = n
+}
+
 type xmlVariable struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Artificial string `xml:"artificial,attr"` // "0"
@@ -640,6 +720,10 @@ func (x *xmlVariable) id() string {
 
 func (x *xmlVariable) name() string {
 	return x.Name
+}
+
+func (x *xmlVariable) set_name(n string) {
+	x.Name = n
 }
 
 func (x xmlNamespace) String() string {
@@ -689,5 +773,54 @@ func (x xmlFunction) String() string {
 
 // patchTemplateName
 func patchTemplateName(node i_id) {
+	var n i_name
+	// check if this node has a name. early return otherwise
+	switch nn := node.(type) {
+	case i_name:
+		n = nn
+	default:
+		return
+	}
+
+	name := n.name()
+	if strings.Contains(name, ">") {
+		return
+	}
+
+	tmplend := len(name)
+	tmplpos := -1
+
+	switch node.(type) {
+	case *xmlFunction, *xmlOperatorFunction, *xmlConstructor, 
+		*xmlMethod, *xmlOperatorMethod:
+		tmplend = strings.LastIndex(name, "(")
+		
+	default:
+		return
+	}
+
+	if tmplend > 1 && string(name[tmplend-1]) == ">" {
+		tmplpos = strings.Index(name, "<")
+	}
+
+	//println("...",tmplpos,tmplend,len(name))
+	if tmplpos <= -1 {
+		return
+	}
+	tmplpos += 1
+	tmplend -= 1
+	tmpl := name[tmplpos:tmplend]
+	//FIXME:
+        // # replace template argument "12u" or "12ul" by "12":
+        // rep = re.sub(r"\b([\d]+)ul?\b", '\\1', name[postmplt:postmpltend])
+        // # replace -0x00000000000000001 by -1
+        // rep = re.sub(r"-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b", '-\\1', rep)
+        // name = name[:postmplt] + rep + name[postmpltend:]
+        // attrs['name'] = name
+
+	n.set_name(name)
+	println("--",name, tmpl, n.name())
+	
+	return
 }
 

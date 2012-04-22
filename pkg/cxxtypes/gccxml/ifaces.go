@@ -10,6 +10,7 @@ type i_align interface {
 
 type i_name interface {
 	name() string
+	set_name(n string)
 }
 
 type i_repr interface {
