@@ -13,6 +13,13 @@ type i_name interface {
 	set_name(n string)
 }
 
+type i_mangler interface {
+	mangled() string
+	demangled() string
+	set_mangled(n string)
+	set_demangled(n string)
+}
+
 type i_repr interface {
 	repr() string 
 }

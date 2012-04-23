@@ -115,6 +115,14 @@ namespace NS {
       std::cout << "hello" << std::endl;
     }
   };
+
+  template<class F> F tmpl_fct() { return F(); }
+
+  template<> int tmpl_fct<int>() { return 42; }
+
+  template<int N> int tmpl_fct_n() { return N; }
+  template<> int tmpl_fct_n<42>() { return 42; }
+  template<> int tmpl_fct_n<-1>() { return -1; }
 }
 
 namespace TT {

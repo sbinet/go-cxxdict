@@ -3,6 +3,7 @@ package gccxml
 import (
 	"encoding/xml"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -60,19 +61,73 @@ func (x *xmlTree) printStats() {
 	fmt.Printf("loaded [%d] fundamentals\n", len(x.FundamentalTypes))
 
 	if g_dbg {
-		for i,_ := range x.FundamentalTypes {
+		for i, _ := range x.FundamentalTypes {
 			fmt.Printf(" => %v\n", x.FundamentalTypes[i])
 		}
+	}
+
+	fmt.Printf("loaded [%d] array-types\n", len(x.Arrays))
+	for _, a := range x.Arrays {
+		fmt.Printf(" => '%s' %v\n", a.name(), a)
 	}
 }
 
 // fixup fixes a few of the "features" of GCC-XML data
 func (x *xmlTree) fixup() {
-}
 
-//func (x *xmlTree) visit(node i_id) i_visitor {
-//	return nil
-//}
+	// first, fixup classes and structs
+	for _, v := range x.Classes {
+		patchTemplateName(v)
+	}
+	for _, v := range x.Structs {
+		patchTemplateName(v)
+	}
+
+	// functions
+	for _, v := range x.Functions {
+		v.set_name(addTemplateToName(v.name(), v.demangled()))
+		patchTemplateName(v)
+	}
+
+	// operators
+	for _, v := range x.OperatorFunctions {
+		//FIXME
+
+		patchTemplateName(v)
+		v.set_name(addTemplateToName(v.name(), v.demangled()))
+	}
+
+	// ctors
+	for _, v := range x.Constructors {
+		if len(v.name()) >= 3 && string(v.name()[0:3]) != "_ZT" {
+			v.set_name(addTemplateToName(v.name(), v.demangled()))
+			patchTemplateName(v)
+		}
+	}
+
+	// methods
+	for _, v := range x.Methods {
+		if len(v.name()) >= 3 && string(v.name()[0:3]) != "_ZT" {
+			v.set_name(addTemplateToName(v.name(), v.demangled()))
+			patchTemplateName(v)
+		}
+	}
+
+	// op-methods
+	for _, v := range x.OperatorMethods {
+		if len(v.name()) >= 3 && string(v.name()[0:3]) != "_ZT" {
+			v.set_name(addTemplateToName(v.name(), v.demangled()))
+			patchTemplateName(v)
+		}
+	}
+
+	// builtins
+	for _, v := range x.FundamentalTypes {
+		alltmpl := false
+		v.set_name(normalizeName(v.name(), alltmpl))
+	}
+
+}
 
 func (x *xmlTree) id() string {
 	return "__0__"
@@ -112,6 +167,17 @@ type xmlArray struct {
 	Min        string `xml:"min,attr"`
 	Size       string `xml:"size,attr"`
 	Type       string `xml:"type,attr"`
+}
+
+func (x *xmlArray) String() string {
+	tname := ""
+	switch tt := g_ids[x.Type].(type) {
+	case i_name:
+		tname = " (" + tt.name() + ")"
+	default:
+	}
+	return fmt.Sprintf("Array{Id=%s, Type='%s'%s, Size=%s, Align=%s, Attrs='%s'}",
+		x.Id, x.Type, tname, x.Size, x.Align, x.Attributes)
 }
 
 func (x *xmlArray) id() string {
@@ -173,8 +239,51 @@ func (x *xml_record) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xml_record) mangled() string {
+	return x.Mangled
+}
+
+func (x *xml_record) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xml_record) demangled() string {
+	return x.Demangled
+}
+
+func (x *xml_record) set_demangled(n string) {
+	x.Demangled = n
+}
+
+func (x xml_record) infos() string {
+	bases := ""
+	if len(x.Bases) > 0 {
+		bases = ", bases=["
+		for i, b := range x.Bases {
+			if i > 0 {
+				bases += " "
+			}
+			bases += b.Offset
+			if i+1 != len(x.Bases) {
+				bases += ", "
+			}
+		}
+		bases += "]"
+	}
+	nmbrs := len(strings.Split(x.Members, " "))
+	return fmt.Sprintf(`{%s, size=%s%s, nmbrs=%d}`,
+		x.Name,
+		x.Size,
+		bases,
+		nmbrs)
+}
+
 type xmlClass struct {
 	xml_record
+}
+
+func (x xmlClass) String() string {
+	return "Class" + x.xml_record.infos()
 }
 
 type xmlConstructor struct {
@@ -209,6 +318,21 @@ func (x *xmlConstructor) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlConstructor) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlConstructor) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlConstructor) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlConstructor) set_demangled(n string) {
+	x.Demangled = n
+}
 type xmlConverter struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Attributes string `xml:"attributes,attr"` // implied
@@ -238,6 +362,22 @@ func (x *xmlConverter) name() string {
 
 func (x *xmlConverter) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlConverter) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlConverter) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlConverter) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlConverter) set_demangled(n string) {
+	x.Demangled = n
 }
 
 type xmlCvQualifiedType struct {
@@ -292,6 +432,22 @@ func (x *xmlDestructor) name() string {
 
 func (x *xmlDestructor) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlDestructor) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlDestructor) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlDestructor) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlDestructor) set_demangled(n string) {
+	x.Demangled = n
 }
 
 type xmlEnumValue struct {
@@ -364,6 +520,22 @@ func (x *xmlField) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlField) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlField) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlField) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlField) set_demangled(n string) {
+	x.Demangled = n
+}
+
 type xmlFile struct {
 	Id   string `xml:"id,attr"`
 	Name string `xml:"name,attr"`
@@ -412,6 +584,30 @@ func (x *xmlFunction) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlFunction) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlFunction) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlFunction) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlFunction) set_demangled(n string) {
+	x.Demangled = n
+}
+
+func (x xmlFunction) String() string {
+	return fmt.Sprintf(`Function{%s, returns=%s, nargs=%d, ellipsis=%s}`,
+		x.Name,
+		x.Returns,
+		len(x.Arguments),
+		x.Ellipsis)
+}
+
 type xmlFunctionType struct {
 	Attributes string `xml:"attributes,attr"` // implied
 	Id         string `xml:"id,attr"`
@@ -437,7 +633,7 @@ func (x *xmlFundamentalType) String() string {
 	return fmt.Sprintf(
 		`builtin{"%s", size=%s, align=%s}`,
 		x.Name, x.Size, x.Align,
-		)
+	)
 }
 
 func (x *xmlFundamentalType) id() string {
@@ -480,8 +676,28 @@ func (x *xmlMethod) id() string {
 	return x.Id
 }
 
+func (x *xmlMethod) name() string {
+	return x.Name
+}
+
 func (x *xmlMethod) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlMethod) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlMethod) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlMethod) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlMethod) set_demangled(n string) {
+	x.Demangled = n
 }
 
 type xmlMethodType struct {
@@ -520,6 +736,26 @@ func (x *xmlNamespace) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlNamespace) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlNamespace) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlNamespace) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlNamespace) set_demangled(n string) {
+	x.Demangled = n
+}
+
+func (x xmlNamespace) String() string {
+	return fmt.Sprintf(`Namespace{%s}`, x.Name)
+}
+
 type xmlNamespaceAlias struct {
 	Context   string `xml:"context,attr"`
 	Demangled string `xml:"demangled,attr"`
@@ -539,6 +775,22 @@ func (x *xmlNamespaceAlias) name() string {
 
 func (x *xmlNamespaceAlias) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlNamespaceAlias) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlNamespaceAlias) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlNamespaceAlias) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlNamespaceAlias) set_demangled(n string) {
+	x.Demangled = n
 }
 
 type xmlOffsetType struct {
@@ -585,6 +837,22 @@ func (x *xmlOperatorFunction) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlOperatorFunction) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlOperatorFunction) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlOperatorFunction) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlOperatorFunction) set_demangled(n string) {
+	x.Demangled = n
+}
+
 type xmlOperatorMethod struct {
 	xmlMethod
 }
@@ -605,7 +873,7 @@ func (x *xmlPointerType) name() string {
 	t := g_ids[x.Type]
 	switch tt := t.(type) {
 	case i_name:
-		return tt.name()+"*"
+		return tt.name() + "*"
 	default:
 	}
 	return "<unnamed>*"
@@ -629,6 +897,10 @@ func (x *xmlReferenceType) id() string {
 
 type xmlStruct struct {
 	xml_record
+}
+
+func (x xmlStruct) String() string {
+	return "Struct" + x.xml_record.infos()
 }
 
 type xmlTypedef struct {
@@ -697,6 +969,22 @@ func (x *xmlUnion) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlUnion) mangled() string {
+	return x.Mangled
+}
+
+func (x *xmlUnion) set_mangled(n string) {
+	x.Mangled = n
+}
+
+func (x *xmlUnion) demangled() string {
+	return x.Demangled
+}
+
+func (x *xmlUnion) set_demangled(n string) {
+	x.Demangled = n
+}
+
 type xmlVariable struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Artificial string `xml:"artificial,attr"` // "0"
@@ -726,50 +1014,48 @@ func (x *xmlVariable) set_name(n string) {
 	x.Name = n
 }
 
-func (x xmlNamespace) String() string {
-	return fmt.Sprintf(`Namespace{%s}`, x.Name)
+func (x *xmlVariable) mangled() string {
+	return x.Mangled
 }
 
-func (x xml_record) infos() string {
-	bases := ""
-	if len(x.Bases) > 0 {
-		bases = ", bases=["
-		for i, b := range x.Bases {
-			if i > 0 {
-				bases += " "
-			}
-			bases += b.Offset
-			if i+1 != len(x.Bases) {
-				bases += ", "
-			}
-		}
-		bases += "]"
-	}
-	nmbrs := len(strings.Split(x.Members, " "))
-	return fmt.Sprintf(`{%s, size=%s%s, nmbrs=%d}`,
-		x.Name,
-		x.Size,
-		bases,
-		nmbrs)
+func (x *xmlVariable) set_mangled(n string) {
+	x.Mangled = n
 }
 
-func (x xmlStruct) String() string {
-	return "Struct" + x.xml_record.infos()
+func (x *xmlVariable) demangled() string {
+	return x.Demangled
 }
 
-func (x xmlClass) String() string {
-	return "Class" + x.xml_record.infos()
-}
-
-func (x xmlFunction) String() string {
-	return fmt.Sprintf(`Function{%s, returns=%s, nargs=%d, ellipsis=%s}`,
-		x.Name,
-		x.Returns,
-		len(x.Arguments),
-		x.Ellipsis)
+func (x *xmlVariable) set_demangled(n string) {
+	x.Demangled = n
 }
 
 // utils ---
+
+// isAlphaNum reports whether the byte is an ASCII letter, number, or underscore
+func isAlphaNum(c uint8) bool {
+	return c == '_' || '0' <= c && c <= '9' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
+}
+
+// addTemplateToName
+func addTemplateToName(n, demangled string) string {
+	name := n
+	posargs := strings.LastIndex(demangled, "(")
+	println("==",posargs, demangled)
+	if posargs > 1 && demangled[posargs-1] == '>' &&
+		(isAlphaNum(demangled[posargs-2]) ||
+		demangled[posargs-2] == '_') {
+		posname := strings.Index(demangled, n+"<")
+		println("++", posname, demangled, n+"<")
+		if posname >= 0 {
+			reui := regexp.MustCompile(`\b(unsigned)(\s+)?([^\w\s])`)
+			nn := string(demangled[posname:posargs])
+			name = reui.ReplaceAllString(nn, `unsigned int\3`)
+			println("~~",nn, posname, posargs, name, n)
+		}
+	}
+	return name
+}
 
 // patchTemplateName
 func patchTemplateName(node i_id) {
@@ -791,15 +1077,15 @@ func patchTemplateName(node i_id) {
 	tmplpos := -1
 
 	switch node.(type) {
-	case *xmlFunction, *xmlOperatorFunction, *xmlConstructor, 
+	case *xmlFunction, *xmlOperatorFunction, *xmlConstructor,
 		*xmlMethod, *xmlOperatorMethod:
 		tmplend = strings.LastIndex(name, "(")
-		
+
 	default:
 		return
 	}
 
-	if tmplend > 1 && string(name[tmplend-1]) == ">" {
+	if tmplend > 1 && name[tmplend-1] == '>' {
 		tmplpos = strings.Index(name, "<")
 	}
 
@@ -810,17 +1096,199 @@ func patchTemplateName(node i_id) {
 	tmplpos += 1
 	tmplend -= 1
 	tmpl := name[tmplpos:tmplend]
+	
+	// replace template argument "12u" of "12ul" with "12"
+	rep := regexp.MustCompile(
+	`\b([\d]+)ul?\b`).ReplaceAllString(tmpl, `\1`)
+	// replace -0x00000000000000001 with -1
+	rep = regexp.MustCompile(
+	`-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b`).ReplaceAllString(rep, `-\1`)
+	name = string(name[:tmplpos]) + rep + name[tmplend:]
 	//FIXME:
-        // # replace template argument "12u" or "12ul" by "12":
-        // rep = re.sub(r"\b([\d]+)ul?\b", '\\1', name[postmplt:postmpltend])
-        // # replace -0x00000000000000001 by -1
-        // rep = re.sub(r"-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b", '-\\1', rep)
-        // name = name[:postmplt] + rep + name[postmpltend:]
-        // attrs['name'] = name
+	// # replace template argument "12u" or "12ul" by "12":
+	// rep = re.sub(r"\b([\d]+)ul?\b", '\\1', name[postmplt:postmpltend])
+	// # replace -0x00000000000000001 by -1
+	// rep = re.sub(r"-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b", '-\\1', rep)
+	// name = name[:postmplt] + rep + name[postmpltend:]
+	// attrs['name'] = name
 
 	n.set_name(name)
-	println("--",name, tmpl, n.name())
-	
+	//println("--", name, tmpl, n.name())
+
 	return
 }
 
+func normalizeName(n string, alltmpl bool) string {
+	name := strings.TrimSpace(n)
+	if !strings.Contains(name, "<") {
+		if !strings.Contains(name, "int") {
+			return name
+		}
+
+		for _, v := range [][]string{
+			{"long long unsigned int", "unsigned long long"},
+			{"long long int", "long long"},
+			{"unsigned short int", "unsigned short"},
+			{"short unsigned int", "unsigned short"},
+			{"short int", "short"},
+			{"long unsigned int", "unsigned long"},
+			{"unsigned long int", "unsigned long"},
+			{"long int", "long"},
+		} {
+			name = strings.Replace(name, v[0], v[1], -1)
+		}
+		return name
+	}
+	clsname := string(name[:strings.Index(name, "<")])
+	var suffix string
+	if strings.LastIndex(name, ">") < len(clsname) {
+		suffix = ""
+	} else {
+		suffix = string(name[strings.LastIndex(name, ">")+1:])
+	}
+	args := getTemplateArgs(name)
+	sargs := make([]string, 0, len(args))
+	for _, v := range args {
+		sargs = append(sargs, normalizeClass(v, alltmpl))
+	}
+
+	//fmt.Sprintf("--> '%s' '%s' %v %v\n", suffix, clsname, args, sargs)
+	if !alltmpl {
+		defargs, ok := g_stldeftable[clsname]
+		//println("---", name, defargs, ok, clsname)
+		if ok {
+			switch defargs_t := defargs.(type) {
+			case []string:
+				// select only the template parameters different from default ones
+				args = sargs
+				sargs = make([]string, 0)
+				nargs := len(args)
+				if len(defargs_t) < nargs {
+					nargs = len(defargs_t)
+				}
+				for i, _ := range args[:nargs] {
+					//println("::", i, args[i], defargs_t[i])
+					if !strings.Contains(string(args[i]), string(defargs_t[i])) {
+						sargs = append(sargs, string(args[i]))
+					}
+				}
+			case map[string][]string:
+				//FIXME
+				panic("fixme")
+				args_tmp := make([]string, 0, len(args))
+				for _, v := range args {
+					vv := normalizeClass(v, true)
+					//println("--", v, "-->", vv)
+					args_tmp = append(args_tmp, vv)
+				}
+				// args = args_tmp
+				// defargs_tup := make([]string, 0)
+				// for i,_ := range args[1:] {
+				// 	defargs_tup = defargs_t[args[:1]]
+				// }
+			default:
+				panic(fmt.Sprintf("unhandled type [%t]", defargs_t))
+			}
+			sargs_tmp := make([]string, 0, len(sargs))
+			for _, v := range sargs {
+				vv := normalizeClass(v, alltmpl)
+				//println("~~", v, vv, alltmpl)
+				sargs_tmp = append(sargs_tmp, vv)
+			}
+			sargs = sargs_tmp
+		}
+	}
+	name = clsname + "<" + strings.Join(sargs, ",")
+	if name[len(name)-1] == '>' {
+		name += " >" + suffix
+	} else {
+		name += ">" + suffix
+	}
+	return name
+}
+
+type stldeftable_t map[string]interface{} //}[]string
+
+var g_stldeftable stldeftable_t = stldeftable_t{
+	"deque":        []string{"=", "std::allocator"},
+	"list":         []string{"=", "std::allocator"},
+	"map":          []string{"=", "=", "std::less", "std::allocator"},
+	"multimap":     []string{"=", "=", "std::less", "std::allocator"},
+	"queue":        []string{"=", "std::queue"},
+	"set":          []string{"=", "std::less", "std::allocator"},
+	"multiset":     []string{"=", "std::less", "std::allocator"},
+	"stack":        []string{"=", "std::queue"},
+	"vector":       []string{"=", "std::allocator"},
+	"basic_string": []string{"=", "std::char_traits", "std::allocator"},
+	//"basic_ostream": {"=", "std::char_traits"},
+	//"basic_istream": {"=", "std::char_traits"},
+	//"basic_streambuf": {"=", "std::char_traits"},
+	//
+	//FIXME: handle win32/gcc
+	// if win32:
+	// "hash_set":      {"=", "stdext::hash_compare", "std::allocator"},
+	// "hash_multiset":      {"=", "stdext::hash_compare", "std::allocator"},
+	// "hash_map":      {"=", "=", "stdext::hash_compare", "std::allocator"},
+	// "hash_multimap":      {"=", "=", "stdext::hash_compare", "std::allocator"},
+	//else:
+	"hash_set":      []string{"=", "__gnu_cxx::hash", "std::equal_to", "std::allocator"},
+	"hash_multiset": []string{"=", "__gnu_cxx::hash", "std::equal_to", "std::allocator"},
+	"hash_map":      []string{"=", "=", "__gnu_cxx::hash", "std::equal_to", "std::allocator"},
+	"hash_multimap": []string{"=", "=", "__gnu_cxx::hash", "std::equal_to", "std::allocator"},
+}
+
+func normalizeClass(name string, alltempl bool) string {
+	names := make([]string, 0)
+	count := 0
+	// special cases:
+	// A< (0>1) >::b
+	// A< b::c >
+	// a< b::c >::d< e::f >
+
+	for _, s := range strings.Split(name, "::") {
+		if count == 0 {
+			names = append(names, s)
+		} else {
+			names[len(names)-1] += "::" + s
+		}
+		count += strings.Count(s, "<") + strings.Count(s, "(") -
+			strings.Count(s, ">") - strings.Count(s, ")")
+	}
+	lst := make([]string, 0, len(names))
+	for _, v := range names {
+		vv := normalizeName(v, alltempl)
+		//println("~+~", v, vv, alltempl)
+		lst = append(lst, vv)
+	}
+	out := strings.Join(lst, "::")
+	//println("**", name, out)
+	return out
+}
+
+func getTemplateArgs(n string) (args []string) {
+	args = []string{}
+	beg := strings.Index(n, "<")
+	if beg == -1 {
+		return
+	}
+	end := strings.LastIndex(n, ">")
+	if end == -1 {
+		return
+	}
+	count := 0
+	for _, s := range strings.Split(string(n[beg+1:end]), ",") {
+		if count == 0 {
+			args = append(args, s)
+		} else {
+			args[len(args)-1] += "," + s
+		}
+		count += strings.Count(s, "<") + strings.Count(s, "(") -
+			strings.Count(s, ">") -
+			strings.Count(s, ")")
+	}
+
+	if len(args) > 0 && len(string(args[len(args)-1])) > 0 {
+		args[len(args)-1] = strings.TrimSpace(args[len(args)-1])
+	}
+	return args
+}

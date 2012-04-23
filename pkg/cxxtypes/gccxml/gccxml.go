@@ -12,7 +12,7 @@ import (
 // globals
 
 var g_dbg bool = true
-var g_ids idDB
+var g_ids idDB = make(idDB, 128)
 
 
 // LoadTypes reads an XML file produced by GCC_XML and fills the cxxtypes' registry accordingly.
@@ -28,21 +28,19 @@ func LoadTypes(fname string) error {
 		return err
 	}
 
-	fmt.Printf("== gccxml data ==\n")
-	root.printStats()
-
-	// walk over the xmlTree twice.
+	// walk over the xmlTree to fill in the db of ids.
 	v := func(node i_id) bool {
 		//println("-->",node.id())
 		g_ids[node.id()] = node
 		return true
 	}
-	println("--walking--...")
 	walk(inspector(v), root)
-
 	fmt.Printf("ids: %d\n", len(g_ids))
 
 	root.fixup()
+
+	fmt.Printf("== gccxml data ==\n")
+	root.printStats()
 
 	// 2) applies fixes to xmlFoobar structs.
 	v = func(node i_id) bool {
@@ -64,10 +62,6 @@ func LoadTypes(fname string) error {
 	walk(inspector(v), root)
 
 	return err
-}
-
-func init() {
-	g_ids = make(idDB, 128)
 }
 
 // EOF
