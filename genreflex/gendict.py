@@ -2063,7 +2063,6 @@ class genDictionary(object) :
       if nid[-1] in ['c','v'] :
         nid = nid[:-1]
       cvdict = {'c':'const','v':'volatile'}
-      prdict = {'PointerType':'*', 'ReferenceType':'&'}
       nidelem = self.xref[nid]['elem']
       if nidelem in ('PointerType','ReferenceType') :
         if const : return self.genTypeName(nid, enum, False, colon)

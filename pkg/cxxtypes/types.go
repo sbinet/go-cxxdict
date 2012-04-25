@@ -676,6 +676,18 @@ func (b *Base) IsVirtual() bool {
 	return b.virtual
 }
 
+// NewMember creates a new member for a struct, class, enum or union
+func NewMember(name string, typ Type, kind TypeKind, access AccessSpecifier, offset uintptr, scope *Scope) Member {
+	return Member{
+		name:   name,
+		typ:    typ,
+		kind:   kind,
+		access: access,
+		scope:  scope,
+		offset: offset,
+	}
+}
+
 // Member represents a member in a struct, class, enum or union
 type Member struct {
 	name   string          // name of this member
