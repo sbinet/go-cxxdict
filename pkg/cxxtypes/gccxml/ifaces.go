@@ -9,6 +9,7 @@ type i_align interface {
 }
 
 type i_name interface {
+	i_id
 	name() string
 	set_name(n string)
 }
@@ -18,6 +19,15 @@ type i_mangler interface {
 	demangled() string
 	set_mangled(n string)
 	set_demangled(n string)
+}
+
+type i_context interface {
+	i_name
+	context() string
+}
+
+type i_gentypename interface {
+	gentypename() string
 }
 
 type i_repr interface {

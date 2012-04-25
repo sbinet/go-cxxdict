@@ -101,16 +101,15 @@ func (kind ObjKind) String() string { return objKindStrings[kind] }
 
 // 
 var (
-	cur_scope   *Scope // current scope to use for initialization
 	Universe *Scope
 )
 
-func define(kind ObjKind, name string) *Object {
+func define(kind ObjKind, name string, scope *Scope) *Object {
 	obj := NewObj(kind, name)
-	if cur_scope.Insert(obj) != nil {
+	if scope.Insert(obj) != nil {
 		panic("cxxtypes: internal error - double declaration")
 	}
-	obj.Decl = cur_scope
+	obj.Decl = scope
 	return obj
 }
 
@@ -120,38 +119,36 @@ func define(kind ObjKind, name string) *Object {
 // }
 
 func init() {
-	cur_scope = NewScope(nil)
-	Universe = cur_scope
+	Universe = NewScope(nil)
 
 	// add builtins
-	define(OK_Typ, "void")
-	define(OK_Typ, "bool")
-	define(OK_Typ, "char")
-	define(OK_Typ, "signed char")
-	define(OK_Typ, "unsigned char")
-	define(OK_Typ, "short")
-	define(OK_Typ, "unsigned short")
-	define(OK_Typ, "int")
-	define(OK_Typ, "unsigned int")
+	define(OK_Typ, "void", Universe)
+	define(OK_Typ, "bool", Universe)
+	define(OK_Typ, "char", Universe)
+	define(OK_Typ, "signed char", Universe)
+	define(OK_Typ, "unsigned char", Universe)
+	define(OK_Typ, "short", Universe)
+	define(OK_Typ, "unsigned short", Universe)
+	define(OK_Typ, "int", Universe)
+	define(OK_Typ, "unsigned int", Universe)
 
-	define(OK_Typ, "long")
-	define(OK_Typ, "unsigned long")
-	define(OK_Typ, "long long")
-	define(OK_Typ, "unsigned long long")
+	define(OK_Typ, "long", Universe)
+	define(OK_Typ, "unsigned long", Universe)
+	define(OK_Typ, "long long", Universe)
+	define(OK_Typ, "unsigned long long", Universe)
 
-	define(OK_Typ, "float")
-	define(OK_Typ, "double")
+	define(OK_Typ, "float", Universe)
+	define(OK_Typ, "double", Universe)
 	
-	define(OK_Typ, "float complex")
-	define(OK_Typ, "double complex")
+	define(OK_Typ, "float complex", Universe)
+	define(OK_Typ, "double complex", Universe)
 
 	// function builtins
-	define(OK_Fun, "sizeof")
+	define(OK_Fun, "sizeof", Universe)
 
 	// stl
-	obj_std := define(OK_Nsp, "std")
+	obj_std := define(OK_Nsp, "std", Universe)
 
-	cur_scope = NewScope(Universe)
-	obj_std.Data = cur_scope
+	obj_std.Data = NewScope(Universe)
 
 }

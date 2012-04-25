@@ -5,6 +5,7 @@ package cxxtypes
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"unsafe"
 )
 
@@ -46,8 +47,6 @@ const (
 	TK_ObjCId
 	TK_ObjCClass
 	TK_ObjCSel
-	TK_FirstBuiltin = TK_Void
-	TK_LastBuiltin  = TK_ObjCSel
 
 	TK_Complex
 	TK_Ptr
@@ -62,7 +61,103 @@ const (
 	TK_FunctionNoProto
 	TK_FunctionProto
 	TK_ConstantArray
+
+	TK_FirstBuiltin = TK_Void
+	TK_LastBuiltin  = TK_ObjCSel
 )
+
+func (tk TypeKind) String() string {
+	switch tk {
+	case TK_Void:
+		return "Void"
+	case TK_Bool:
+		return "Bool"
+	case TK_Char_U:
+		return "Char_U"
+	case TK_UChar:
+		return "UChar"
+	case TK_Char16:
+		return "Char16"
+	case TK_Char32:
+		return "Char32"
+	case TK_UShort:
+		return "UShort"
+	case TK_UInt:
+		return "UInt"
+	case TK_ULong:
+		return "ULong"
+	case TK_ULongLong:
+		return "ULongLong"
+	case TK_UInt128:
+		return "UInt128"
+	case TK_Char_S:
+		return "Char_S"
+	case TK_SChar:
+		return "SChar"
+	case TK_WChar:
+		return "WChar"
+	case TK_Short:
+		return "Short"
+	case TK_Int:
+		return "Int"
+	case TK_Long:
+		return "Long"
+	case TK_LongLong:
+		return "LongLong"
+	case TK_Int128:
+		return "Int128"
+	case TK_Float:
+		return "Float"
+	case TK_Double:
+		return "Double"
+	case TK_LongDouble:
+		return "LongDouble"
+	case TK_NullPtr:
+		return "NullPtr"
+	case TK_Overload:
+		return "Overload"
+	case TK_Dependent:
+		return "Dependent"
+	case TK_ObjCId:
+		return "ObjCId"
+	case TK_ObjCClass:
+		return "ObjCClass"
+	case TK_ObjCSel:
+		return "ObjCSel"
+	// TK_FirstBuiltin = TK_Void
+	// TK_LastBuiltin  = TK_ObjCSel
+
+	case TK_Complex:
+		return "Complex"
+	case TK_Ptr:
+		return "Ptr"
+	case TK_BlockPtr:
+		return "BlockPtr"
+	case TK_LValueRef:
+		return "LValueRef"
+	case TK_RValueRef:
+		return "RValueRef"
+	case TK_Record:
+		return "Record"
+	case TK_Enum:
+		return "Enum"
+	case TK_Typedef:
+		return "Typedef"
+	case TK_ObjCInterface:
+		return "ObjCInterface"
+	case TK_ObjCObjectPointer:
+		return "ObjCObjectPointer"
+	case TK_FunctionNoProto:
+		return "FunctionNoProto"
+	case TK_FunctionProto:
+		return "FunctionProto"
+	case TK_ConstantArray:
+		return "ConstantArray"
+	default:
+		panic(fmt.Sprintf("unknown TypeKind: %d", tk))
+	}
+	panic("unreachable")
+}
 
 // TypeQualifier represents the set of qualifiers (const,volatile,restrict) which decorate a type
 // The zero TypeQualifier denotes no qualifier being applied.
@@ -74,6 +169,23 @@ const (
 	TQ_Restrict
 	TQ_Volatile
 )
+
+func (tq TypeQualifier) String() string {
+	if tq == TQ_None {
+		return "<none>"
+	}
+	s := []string{}
+	if (tq & TQ_Const) != 0 {
+		s = append(s, "const")
+	}
+	if (tq & TQ_Restrict) != 0 {
+		s = append(s, "restrict")
+	}
+	if (tq & TQ_Volatile) != 0 {
+		s = append(s, "volatile")
+	}
+	return strings.Join(s, "|")
+}
 
 // Type is the representation of a C/C++ type
 //
@@ -105,6 +217,8 @@ type Type interface {
 	// CanonicalType returns the underlying type with all
 	// the "sugar" removed.
 	//CanonicalType() Type
+
+	to_commonType() *commonType
 }
 
 // the db of all types
@@ -121,6 +235,15 @@ func TypeByName(n string) Type {
 		return t
 	}
 	return nil
+}
+
+// TypeNames returns the list of type names currently defined.
+func TypeNames() []string {
+	names := make([]string, 0, len(g_types))
+	for k, _ := range g_types {
+		names = append(names, k)
+	}
+	return names
 }
 
 // NumType returns the number of currently defined types
@@ -182,15 +305,44 @@ func (t *commonType) DeclScope() *Scope {
 	return t.scope
 }
 
+func (t *commonType) String() string {
+	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
+		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
+}
+
+func (t *commonType) to_commonType() *commonType {
+	return t
+}
+
 // func (t *commonType) CanonicalType() Type {
 // 	return t.canon
 // }
+
+// NewFundamentalType creates a C/C++ builtin type.
+func NewFundamentalType(name string, size uintptr, kind TypeKind, scope *Scope) Type {
+	tt := &FundamentalType{
+		commonType: commonType{
+			size:  size,
+			kind:  kind,
+			qual:  TQ_None,
+			scope: scope,
+			name:  name,
+		},
+	}
+	add_type(tt)
+	return tt
+}
+
+// FundamentalType represents a builtin type
+type FundamentalType struct {
+	commonType `cxxtypes:"builtin"`
+}
 
 // NewQualType creates a new const-restrict-volatile qualified type.
 // The new qualifiers are added to the old ones of the base type.
 func NewQualType(t Type, scope *Scope, qual TypeQualifier) (q Type) {
 	q = copy_cxxtype(t, scope)
-	ct := q.(*commonType)
+	ct := q.to_commonType()
 	ct.qual |= qual
 	ct.name = gen_new_name(t.Name(), qual)
 	add_type(q)
@@ -807,7 +959,7 @@ func set_scope(members []Member, t Type, outer *Scope) error {
 	// get type as scope
 	obj := outer.Lookup(t.Name())
 	if obj == nil {
-		return errors.New("set_scope: could not find scope[" + t.Name() + "]")
+		return errors.New("set_scope: could not find scope [" + t.Name() + "]")
 	}
 
 	scope := obj.Data.(*Scope)
@@ -847,6 +999,11 @@ func copy_cxxtype(t Type, scope *Scope) Type {
 	var o Type
 
 	switch t := t.(type) {
+
+	case *FundamentalType:
+		var tt FundamentalType = *t
+		o = &tt
+
 	case *PtrType:
 		var tt PtrType = *t
 		o = &tt
@@ -913,7 +1070,7 @@ func copy_cxxtype(t Type, scope *Scope) Type {
 		o = &tt
 
 	default:
-		panic("cxxtypes: unknown type")
+		panic(fmt.Sprintf("cxxtypes: unknown type [%T]", t))
 	}
 	return o
 }

@@ -31,6 +31,17 @@ var names_to_normalize [][]string = [][]string{
 		"long",
 		"long"},
 
+	{"complex float",
+		"float complex",
+		"float complex"},
+
+	{"complex double",
+		"double complex",
+		"double complex"},
+
+	{"complex long double",
+		"long double complex",
+		"long double complex"},
 
 	// stl-vector
 	{"vector<int,std::allocator<int> >",

@@ -4,7 +4,10 @@ import (
 	"encoding/xml"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
+
+	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
 )
 
 // helper function to "convert" a 0|1 string into a boolean
@@ -91,8 +94,20 @@ func (x *xmlTree) fixup() {
 
 	// operators
 	for _, v := range x.OperatorFunctions {
-		//FIXME
-
+		name := v.name()
+		if len(name) >= 8 && name[:8] == "operator" {
+			if name[8] == ' ' {
+				if !isAlpha(name[9]) && name[9] != '_' {
+					v.set_name("operator" + name[9:])
+				}
+			}
+		} else {
+			if isAlpha(name[0]) {
+				v.set_name("operator " + name)
+			} else {
+				v.set_name("operator" + name)
+			}
+		}
 		patchTemplateName(v)
 		v.set_name(addTemplateToName(v.name(), v.demangled()))
 	}
@@ -121,12 +136,178 @@ func (x *xmlTree) fixup() {
 		}
 	}
 
+	// // variables
+	// for _, v := range x.Variables {
+	// 	name := v.name()
+	// 	if len(name) >= 4 && name[:4] == "_ZTV" {
+
+	// 	}
+	// }
+
 	// builtins
 	for _, v := range x.FundamentalTypes {
 		alltmpl := false
 		v.set_name(normalizeName(v.name(), alltmpl))
 	}
 
+}
+
+func (x *xmlTree) gencxxscopes() error {
+
+	build_scopes_for := func(v i_context) {
+		if v.name() == "::" {
+			// global namespace. nothing to do.
+			return
+		}
+		dbg := false
+		if v.name() == "id" || v.name() == "locale" {
+			dbg = true
+			fmt.Printf("===============================\n")
+		}
+		scope := cxxtypes.Universe
+		scopeids := []string{v.id()}
+		var vv i_context = v
+		for {
+			id := vv.context()
+			if id == "" {
+				panic("invalid context-id for node [" + vv.name() + "]")
+			}
+			vv = g_ids[id].(i_context)
+			if vv.name() == "::" {
+				break
+			}
+			scopeids = append(scopeids, id)
+		}
+		scope = cxxtypes.Universe
+		for i := len(scopeids) - 1; 0 <= i; i-- {
+			ns := g_ids[scopeids[i]].(i_context)
+			if dbg {
+				fmt.Printf("--> s[%d]=%s [name=%s pid=%s]\n", i, scopeids[i], ns.name(), ns.context())
+			}
+			pid := ns.context()
+			if pid == "" {
+				scope = cxxtypes.Universe
+			}
+			name := getScopedName(ns)
+			if scope == cxxtypes.Universe {
+				if dbg {
+					fmt.Printf("-- adding [%s](%s) to universe(%p) - pid=[%s,%s]\n",
+						ns.name(), name, scope, pid, g_ids[pid].(i_name).name())
+				}
+			}
+			if dbg {
+				fmt.Printf("-- lookup [%s] into scope [%p]\n", name, scope)
+			}
+			obj := scope.Lookup(name)
+			if obj == nil {
+				ok_typ := node_to_cxxoktype(ns)
+				if dbg {
+					fmt.Printf("-- adding obj [%s](%v) to scope [%p]...\n",
+						name, ok_typ, scope)
+				}
+				scope.Insert(cxxtypes.NewObj(ok_typ, name))
+				obj = scope.Lookup(name)
+				obj.Data = cxxtypes.NewScope(scope)
+			}
+			scope = obj.Data.(*cxxtypes.Scope)
+		}
+	}
+
+	for _, v := range x.Namespaces {
+		build_scopes_for(v)
+		// mark the global namespace for later
+		if v.context() == "" {
+			g_globalns_id = v.id()
+		}
+	}
+
+	//FIXME: handle namespace aliases
+	// probably by having obj.Data point at the obj.Data of the scope
+	// it is aliasing...
+	// for _,v := range x.NamespaceAliases {
+	// 	build_scopes_for(v)
+	// }
+
+	for _, v := range x.Classes {
+		build_scopes_for(v)
+	}
+
+	for _, v := range x.Structs {
+		build_scopes_for(v)
+	}
+
+	for _, v := range x.Unions {
+		build_scopes_for(v)
+	}
+
+	for _, v := range x.Enumerations {
+		build_scopes_for(v)
+	}
+
+	//fmt.Printf("==scope==: %v\n", cxxtypes.Universe)
+	//fmt.Printf("==std==:\n%v\n", cxxtypes.Universe.Lookup("std").Data.(*cxxtypes.Scope))
+	return nil
+}
+
+func (x *xmlTree) gencxxtypes() error {
+
+	// first, generate builtins.
+	n2tk := map[string]cxxtypes.TypeKind{
+		"void":           cxxtypes.TK_Void,
+		"bool":           cxxtypes.TK_Bool,
+		"char":           gccxml_get_char_type(),
+		"signed char":    cxxtypes.TK_SChar,
+		"unsigned char":  cxxtypes.TK_UChar,
+		"wchar_t": cxxtypes.TK_WChar,
+		"short":          cxxtypes.TK_Short,
+		"unsigned short": cxxtypes.TK_UShort,
+		"int":            cxxtypes.TK_Int,
+		"unsigned int":   cxxtypes.TK_UInt,
+
+		"long":               cxxtypes.TK_Long,
+		"unsigned long":      cxxtypes.TK_ULong,
+		"long long":          cxxtypes.TK_LongLong,
+		"unsigned long long": cxxtypes.TK_ULongLong,
+
+		"float":  cxxtypes.TK_Float,
+		"double": cxxtypes.TK_Double,
+		"long double": cxxtypes.TK_LongDouble,
+
+		"float complex":       cxxtypes.TK_Complex,
+		"double complex":      cxxtypes.TK_Complex,
+		"long double complex": cxxtypes.TK_Complex,
+	}
+	for _, v := range x.FundamentalTypes {
+		scope := cxxtypes.Universe
+		if v.name() == "" {
+			panic("empty builtin type name !")
+		}
+		tk,ok := n2tk[v.name()]
+		if !ok {
+			panic("no such builtin type ["+v.name()+"]")
+		}
+		cxxtypes.NewFundamentalType(
+			v.name(),
+			str_to_uintptr(v.Size),
+			tk,
+			scope,
+		)
+	}
+
+	for _, v := range x.Classes {
+		//scope := cxxtypes.Universe
+		scopeids := getScopeChainIds(v)
+		scopenames := getScopeChainNames(v)
+		fmt.Printf("%s: %v\n",v.name(), scopeids)
+		fmt.Printf(" => %v\n", scopenames)
+	}
+
+	for _, v := range x.Arrays {
+		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), getScopedName(v))
+		t := gentype_from_gccxml(v)
+		fmt.Printf("%v\n", t)
+	}
+	return nil
 }
 
 func (x *xmlTree) id() string {
@@ -194,6 +375,11 @@ func (x *xmlArray) set_name(n string) {
 	panic("fixme: can set name of an array yet")
 }
 
+func (x *xmlArray) context() string {
+	t := g_ids[x.Type]
+	return t.(i_context).context()
+}
+
 type xmlBase struct {
 	Type    string `xml:"type,attr"`
 	Access  string `xml:"access,attr"`
@@ -253,6 +439,10 @@ func (x *xml_record) demangled() string {
 
 func (x *xml_record) set_demangled(n string) {
 	x.Demangled = n
+}
+
+func (x *xml_record) context() string {
+	return x.Context
 }
 
 func (x xml_record) infos() string {
@@ -333,6 +523,11 @@ func (x *xmlConstructor) demangled() string {
 func (x *xmlConstructor) set_demangled(n string) {
 	x.Demangled = n
 }
+
+func (x *xmlConstructor) context() string {
+	return x.Context
+}
+
 type xmlConverter struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Attributes string `xml:"attributes,attr"` // implied
@@ -380,6 +575,10 @@ func (x *xmlConverter) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlConverter) context() string {
+	return x.Context
+}
+
 type xmlCvQualifiedType struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"` // implied
@@ -402,6 +601,11 @@ func (x *xmlCvQualifiedType) name() string {
 
 func (x *xmlCvQualifiedType) set_name(n string) {
 	panic("fixme: can set the name of a cv-qualified type - yet")
+}
+
+func (x *xmlCvQualifiedType) context() string {
+	t := g_ids[x.Type]
+	return t.(i_context).context()
 }
 
 type xmlDestructor struct {
@@ -450,6 +654,10 @@ func (x *xmlDestructor) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlDestructor) context() string {
+	return x.Context
+}
+
 type xmlEnumValue struct {
 	Init string `xml:"init,attr"`
 	Name string `xml:"name,attr"`
@@ -489,6 +697,10 @@ func (x *xmlEnumeration) name() string {
 
 func (x *xmlEnumeration) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlEnumeration) context() string {
+	return x.Context
 }
 
 type xmlField struct {
@@ -534,6 +746,10 @@ func (x *xmlField) demangled() string {
 
 func (x *xmlField) set_demangled(n string) {
 	x.Demangled = n
+}
+
+func (x *xmlField) context() string {
+	return x.Context
 }
 
 type xmlFile struct {
@@ -600,6 +816,10 @@ func (x *xmlFunction) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlFunction) context() string {
+	return x.Context
+}
+
 func (x xmlFunction) String() string {
 	return fmt.Sprintf(`Function{%s, returns=%s, nargs=%d, ellipsis=%s}`,
 		x.Name,
@@ -646,6 +866,10 @@ func (x *xmlFundamentalType) name() string {
 
 func (x *xmlFundamentalType) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlFundamentalType) context() string {
+	return g_globalns_id
 }
 
 type xmlMethod struct {
@@ -698,6 +922,10 @@ func (x *xmlMethod) demangled() string {
 
 func (x *xmlMethod) set_demangled(n string) {
 	x.Demangled = n
+}
+
+func (x *xmlMethod) context() string {
+	return x.Context
 }
 
 type xmlMethodType struct {
@@ -756,6 +984,10 @@ func (x xmlNamespace) String() string {
 	return fmt.Sprintf(`Namespace{%s}`, x.Name)
 }
 
+func (x *xmlNamespace) context() string {
+	return x.Context
+}
+
 type xmlNamespaceAlias struct {
 	Context   string `xml:"context,attr"`
 	Demangled string `xml:"demangled,attr"`
@@ -791,6 +1023,10 @@ func (x *xmlNamespaceAlias) demangled() string {
 
 func (x *xmlNamespaceAlias) set_demangled(n string) {
 	x.Demangled = n
+}
+
+func (x *xmlNamespaceAlias) context() string {
+	return x.Context
 }
 
 type xmlOffsetType struct {
@@ -853,6 +1089,10 @@ func (x *xmlOperatorFunction) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlOperatorFunction) context() string {
+	return x.Context
+}
+
 type xmlOperatorMethod struct {
 	xmlMethod
 }
@@ -883,6 +1123,11 @@ func (x *xmlPointerType) set_name(n string) {
 	panic("fixme: can set a name for a pointer-type - yet")
 }
 
+func (x *xmlPointerType) context() string {
+	t := g_ids[x.Type]
+	return t.(i_context).context()
+}
+
 type xmlReferenceType struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"` // implied
@@ -893,6 +1138,11 @@ type xmlReferenceType struct {
 
 func (x *xmlReferenceType) id() string {
 	return x.Id
+}
+
+func (x *xmlReferenceType) context() string {
+	t := g_ids[x.Type]
+	return t.(i_context).context()
 }
 
 type xmlStruct struct {
@@ -924,6 +1174,10 @@ func (x *xmlTypedef) name() string {
 
 func (x *xmlTypedef) set_name(n string) {
 	x.Name = n
+}
+
+func (x *xmlTypedef) context() string {
+	return x.Context
 }
 
 type xmlUnimplemented struct {
@@ -985,6 +1239,10 @@ func (x *xmlUnion) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlUnion) context() string {
+	return x.Context
+}
+
 type xmlVariable struct {
 	Access     string `xml:"access,attr"`     // default "public"
 	Artificial string `xml:"artificial,attr"` // "0"
@@ -1030,28 +1288,80 @@ func (x *xmlVariable) set_demangled(n string) {
 	x.Demangled = n
 }
 
+func (x *xmlVariable) context() string {
+	return x.Context
+}
+
 // utils ---
 
 // isAlphaNum reports whether the byte is an ASCII letter, number, or underscore
 func isAlphaNum(c uint8) bool {
-	return c == '_' || '0' <= c && c <= '9' || 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
+	return c == '_' ||
+		('0' <= c && c <= '9') ||
+		('a' <= c && c <= 'z') ||
+		('A' <= c && c <= 'Z')
+}
+
+// isAlpha reports whether the byte is an ASCII letter
+func isAlpha(c uint8) bool {
+	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
+}
+
+// str_to_uintptr returns a uintptr from a string
+func str_to_uintptr(s string) uintptr {
+	if s == "" {
+		return uintptr(0)
+	}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		panic(err)
+	}
+	if i < 0 {
+		panic(strconv.ErrRange)
+	}
+	return uintptr(i)
+}
+
+// str_to_bool returns a bool from a string
+func str_to_bool(s string) bool {
+	if s == "" || s == "0" {
+		return false
+	}
+	return true
+}
+
+// node_to_cxxoktype returns a cxxtypes.ObjKind based on the underlying node type
+func node_to_cxxoktype(node i_id) cxxtypes.ObjKind {
+	switch node.(type) {
+	case *xmlNamespace, *xmlNamespaceAlias:
+		return cxxtypes.OK_Nsp
+
+	case *xmlConstructor, *xmlConverter, *xmlDestructor,
+		*xmlFunction, *xmlMethod,
+		*xmlOperatorFunction, *xmlOperatorMethod:
+		return cxxtypes.OK_Fun
+
+	case *xmlVariable:
+		return cxxtypes.OK_Var
+
+	default:
+		return cxxtypes.OK_Typ
+	}
+	return cxxtypes.OK_Bad
 }
 
 // addTemplateToName
 func addTemplateToName(n, demangled string) string {
 	name := n
 	posargs := strings.LastIndex(demangled, "(")
-	println("==",posargs, demangled)
 	if posargs > 1 && demangled[posargs-1] == '>' &&
 		(isAlphaNum(demangled[posargs-2]) ||
-		demangled[posargs-2] == '_') {
+			demangled[posargs-2] == '_') {
 		posname := strings.Index(demangled, n+"<")
-		println("++", posname, demangled, n+"<")
 		if posname >= 0 {
 			reui := regexp.MustCompile(`\b(unsigned)(\s+)?([^\w\s])`)
 			nn := string(demangled[posname:posargs])
 			name = reui.ReplaceAllString(nn, `unsigned int\3`)
-			println("~~",nn, posname, posargs, name, n)
 		}
 	}
 	return name
@@ -1096,13 +1406,13 @@ func patchTemplateName(node i_id) {
 	tmplpos += 1
 	tmplend -= 1
 	tmpl := name[tmplpos:tmplend]
-	
+
 	// replace template argument "12u" of "12ul" with "12"
 	rep := regexp.MustCompile(
-	`\b([\d]+)ul?\b`).ReplaceAllString(tmpl, `\1`)
+		`\b([\d]+)ul?\b`).ReplaceAllString(tmpl, `\1`)
 	// replace -0x00000000000000001 with -1
 	rep = regexp.MustCompile(
-	`-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b`).ReplaceAllString(rep, `-\1`)
+		`-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b`).ReplaceAllString(rep, `-\1`)
 	name = string(name[:tmplpos]) + rep + name[tmplend:]
 	//FIXME:
 	// # replace template argument "12u" or "12ul" by "12":
@@ -1121,22 +1431,32 @@ func patchTemplateName(node i_id) {
 func normalizeName(n string, alltmpl bool) string {
 	name := strings.TrimSpace(n)
 	if !strings.Contains(name, "<") {
-		if !strings.Contains(name, "int") {
-			return name
+
+		if strings.Contains(name, "int") {
+			for _, v := range [][]string{
+				{"long long unsigned int", "unsigned long long"},
+				{"long long int", "long long"},
+				{"unsigned short int", "unsigned short"},
+				{"short unsigned int", "unsigned short"},
+				{"short int", "short"},
+				{"long unsigned int", "unsigned long"},
+				{"unsigned long int", "unsigned long"},
+				{"long int", "long"},
+			} {
+				name = strings.Replace(name, v[0], v[1], -1)
+			}
 		}
 
-		for _, v := range [][]string{
-			{"long long unsigned int", "unsigned long long"},
-			{"long long int", "long long"},
-			{"unsigned short int", "unsigned short"},
-			{"short unsigned int", "unsigned short"},
-			{"short int", "short"},
-			{"long unsigned int", "unsigned long"},
-			{"unsigned long int", "unsigned long"},
-			{"long int", "long"},
-		} {
-			name = strings.Replace(name, v[0], v[1], -1)
+		if strings.Contains(name, "complex") {
+			for _, v := range [][]string{
+				{"complex float", "float complex"},
+				{"complex double", "double complex"},
+				{"complex long double", "long double complex"},
+			} {
+				name = strings.Replace(name, v[0], v[1], -1)
+			}
 		}
+
 		return name
 	}
 	clsname := string(name[:strings.Index(name, "<")])
@@ -1291,4 +1611,246 @@ func getTemplateArgs(n string) (args []string) {
 		args[len(args)-1] = strings.TrimSpace(args[len(args)-1])
 	}
 	return args
+}
+
+// gtnCfg eases the calling of genTypeName
+type gtnCfg struct {
+	enum       bool
+	const_veto bool
+	colon      bool
+	alltmpl    bool
+}
+
+func genTypeName(id string, cfg gtnCfg) string {
+	node := g_ids[id]
+	return node.(i_name).name()
+}
+
+func isUnnamedType(name string) bool {
+	// ellipsis would screw us up...
+	name = strings.Replace(name, "...", "", -1)
+	if strings.IndexAny(name, ".$") != -1 {
+		return true
+	}
+	return false
+}
+
+func genScopeName(id string, cfg gtnCfg) string {
+	s := ""
+	var node i_id
+	// climb the context tree up as long as the embedding context is unnamed
+	for {
+		node = g_ids[id]
+		t, ok := node.(i_context)
+		if ok {
+			id = t.context()
+			node = g_ids[id]
+			tn, ok := node.(i_name)
+			if ok && tn.name() != "" && strings.Index(tn.name(), ".") == -1 {
+				break
+			}
+		} else {
+			break
+		}
+	}
+	ns := genTypeName(id, cfg)
+	if ns != "" {
+		s = ns + "::"
+	} else if cfg.colon {
+		s = "::"
+	}
+	return s
+}
+
+// getScopeChainIds returns the chain of context-ids from the global-one to the current node.
+func getScopeChainIds(node i_context) []string {
+	scopeids := make([]string, 0, 1)
+	for {
+		scopeids = append(scopeids, node.id())
+		pid := node.context()
+		if pid == "" {
+			// we reached the global namespace
+			break
+		}
+		p := g_ids[node.context()].(i_context)
+		node = p
+	}
+	// Reverse scopeids
+	for i, j := 0, len(scopeids)-1; i < j; i, j = i+1, j-1 {
+		scopeids[i], scopeids[j] = scopeids[j], scopeids[i]
+	}	
+	return scopeids
+}
+
+// getScopeChainNames returns the chain of scope names from the global-one to the current node.
+func getScopeChainNames(node i_context) []string {
+	scopeids := getScopeChainIds(node)
+	scopenames := make([]string, 0, len(scopeids))
+	for _,id := range scopeids {
+		n := g_ids[id].(i_name).name()
+		scopenames = append(scopenames, n)
+	}
+	return scopenames
+}
+
+// getScopedName returns the fully qualified name for a context
+//  e.g: 'std::vector<int>'
+//       'std::locale::id'
+//       'float'
+func getScopedName(node i_name) string {
+	if ctx,ok := node.(i_context); ok {
+		scope_names := getScopeChainNames(ctx)
+		if scope_names[0] == "::" {
+			scope_names = scope_names[1:]
+		}
+		return strings.Join(scope_names, "::")
+	}
+	return node.name()
+}
+
+// getCxxtypesScope
+func getCxxtypesScope(node i_id) *cxxtypes.Scope {
+	scope := cxxtypes.Universe
+	dbg := false
+	if node.id() == "_4490" ||
+		node.id() == "_2658" ||
+		node.id() == "_2569" ||
+		node.id() == "_941" ||
+		node.id() == "_2" {
+		dbg = true
+	}
+	if n,ok := node.(i_context); ok {
+		scopenames := getScopeChainNames(n)
+		if dbg {
+			fmt.Printf("--looking for cxxtypes.Scope for id [%s] (%v)...\n", n.id(), scopenames)
+			fmt.Printf("-- (%v)\n", scopenames[1:])
+		}
+		if scopenames[0] == "::" {
+			scopenames = scopenames[1:]
+		}
+		scopenames = scopenames[:len(scopenames)-1]
+		for i,_ := range scopenames {
+			if dbg {
+				fmt.Printf(">> (%v) -> (%v)\n", scopenames[:i+1], strings.Join(scopenames[:i], "::"))
+			}
+			nn := strings.Join(scopenames[:i+1], "::")
+			if dbg {
+				fmt.Printf("--looking for [%s] in scope %p...\n", nn, scope)
+			}
+			obj := scope.Lookup(nn)
+			if obj == nil {
+				panic(fmt.Sprintf("no such scope [%s] (id=%s)\n%v\nuniverse:%p scope:%p",
+					nn, node.id(), scope, cxxtypes.Universe, scope))
+			}
+			scope = obj.Data.(*cxxtypes.Scope)
+		}
+	} else {
+		if dbg {
+			fmt.Printf("id[%s] hasnt no context... returning Universe\n", node.id())
+		}
+	}
+	if dbg {
+		fmt.Printf("--> found scope [%p] for node [%s]\n", scope, node.id())
+	}
+	return scope
+}
+
+func gentype_from_gccxml(node i_id) cxxtypes.Type {
+
+	// has that type already been processed ?
+	if tname,ok := g_processed_ids[node.id()]; ok {
+		return cxxtypes.TypeByName(tname)
+	}
+
+	var ct cxxtypes.Type = nil
+
+	switch t := node.(type) {
+
+	case *xmlFundamentalType:
+		return cxxtypes.TypeByName(t.name())
+
+	case *xmlArray:
+		sz := str_to_uintptr(t.Size)
+		typ := gentype_from_gccxml(g_ids[t.Type])
+		scope := getCxxtypesScope(t)
+		ct = cxxtypes.NewArrayType(sz, typ, scope)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	case *xmlCvQualifiedType:
+		//sz := str_to_uintptr(t.Size)
+		typ := gentype_from_gccxml(g_ids[t.Type])
+		scope := getCxxtypesScope(t)
+		qual := cxxtypes.TQ_None
+		if str_to_bool(t.Const) {
+			qual |= cxxtypes.TQ_Const
+		}
+		if str_to_bool(t.Restrict) {
+			qual |= cxxtypes.TQ_Restrict
+		}
+		if str_to_bool(t.Volatile) {
+			qual |= cxxtypes.TQ_Volatile
+		}
+		ct := cxxtypes.NewQualType(typ, scope, qual)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	case *xmlPointerType:
+		typ := gentype_from_gccxml(g_ids[t.Type])
+		scope := getCxxtypesScope(t)
+		ct = cxxtypes.NewPtrType(typ, scope)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	case *xmlDestructor:
+		//FIXME
+		return cxxtypes.TypeByName("void")
+
+	case *xmlStruct:
+		scope_names := getScopeChainNames(t)
+		if scope_names[0] == "::" {
+			scope_names = scope_names[1:]
+		}
+		scoped_name := strings.Join(scope_names, "::")
+		sz := str_to_uintptr(t.Size)
+		mbrs := []cxxtypes.Member{} //FIXME
+		scope := getCxxtypesScope(t)
+		println("**>",t.name(), scoped_name)
+		ct = cxxtypes.NewStructType(scoped_name, sz, mbrs, scope)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	case *xmlClass:
+		scope_names := getScopeChainNames(t)
+		if scope_names[0] == "::" {
+			scope_names = scope_names[1:]
+		}
+		scoped_name := strings.Join(scope_names, "::")
+		sz := str_to_uintptr(t.Size)
+		mbrs := []cxxtypes.Member{} //FIXME
+		bases := []cxxtypes.Base{}  //FIXME
+		scope := getCxxtypesScope(t)
+		println("**>",t.name(), scoped_name)
+		ct = cxxtypes.NewClassType(scoped_name, sz, bases, mbrs, scope)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	case *xmlTypedef:
+		scope_names := getScopeChainNames(t)
+		if scope_names[0] == "::" {
+			scope_names = scope_names[1:]
+		}
+		scoped_name := strings.Join(scope_names, "::")
+		typ := gentype_from_gccxml(g_ids[t.Type])
+		scope := getCxxtypesScope(t)
+		ct = cxxtypes.NewTypedefType(scoped_name, typ, scope)
+		g_processed_ids[t.id()] = ct.Name()
+		return ct
+
+	default:
+		println("+++++++++++++++",t.id())
+		panic(fmt.Sprintf("unhandled type [%T] (%s)", t, t.id()))
+	}
+
+	return ct
 }

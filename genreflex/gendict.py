@@ -219,15 +219,9 @@ class genDictionary(object) :
       if 'name' in attrs and attrs['name'] == 'TObject' :
         self.TObject_id = attrs['id']
     elif name in ('Function',) :
-      if 'name' in attrs and 'tmpl_fct' in attrs['name']:
-        print "++>",attrs['name'],attrs['demangled']
       self.addTemplateToName(attrs)
-      if 'name' in attrs and 'tmpl_fct' in attrs['name']:
-        print "++-",attrs['name'],attrs['demangled']
       self.patchTemplateName(attrs, name)
       self.functions.append(attrs)
-      if 'name' in attrs and 'tmpl_fct' in attrs['name']:
-        print "++<",attrs['name'],attrs['demangled']
     elif name in ('Enumeration',) :
       self.enums.append(attrs)
     elif name in ('Variable',) :
