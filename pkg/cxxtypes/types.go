@@ -314,6 +314,68 @@ func (t *commonType) to_commonType() *commonType {
 	return t
 }
 
+type placeHolderType struct {
+	name string
+	typ  Type
+}
+
+func NewPlaceHolder(name string) Type {
+	return &placeHolderType{name:name, typ:nil}
+}
+
+func (t *placeHolderType) sync() bool {
+	if t.typ == nil {
+		t.typ = TypeByName(t.name)
+	}
+	return t.typ != nil
+}
+func (t *placeHolderType) Name() string {
+	if t.sync() {
+		return t.typ.Name()
+	}
+	return t.name
+}
+
+func (t *placeHolderType) Size() uintptr {
+	if t.sync() {
+		return t.typ.Size()
+	}
+	return uintptr(0)
+}
+
+func (t *placeHolderType) Kind() TypeKind {
+	if t.sync() {
+		return t.typ.Kind()
+	}
+	return TK_Invalid
+}
+
+func (t *placeHolderType) Qualifiers() TypeQualifier {
+	if t.sync() {
+		return t.typ.Qualifiers()
+	}
+	return TQ_None
+}
+
+func (t *placeHolderType) DeclScope() *Scope {
+	if t.sync() {
+		return t.typ.DeclScope()
+	}
+	return nil
+}
+
+func (t *placeHolderType) String() string {
+	t.sync()
+	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
+		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
+}
+
+func (t *placeHolderType) to_commonType() *commonType {
+	t.sync()
+	return t.typ.to_commonType()
+}
+
+
 // func (t *commonType) CanonicalType() Type {
 // 	return t.canon
 // }
@@ -340,11 +402,12 @@ type FundamentalType struct {
 
 // NewQualType creates a new const-restrict-volatile qualified type.
 // The new qualifiers are added to the old ones of the base type.
-func NewQualType(t Type, scope *Scope, qual TypeQualifier) (q Type) {
+func NewQualType(n string, t Type, scope *Scope, qual TypeQualifier) (q Type) {
 	q = copy_cxxtype(t, scope)
 	ct := q.to_commonType()
 	ct.qual |= qual
-	ct.name = gen_new_name(t.Name(), qual)
+	//FIXME
+	ct.name = n//gen_new_name(t.Name(), qual)
 	add_type(q)
 	return
 }
@@ -983,6 +1046,9 @@ func set_scope(members []Member, t Type, outer *Scope) error {
 
 // add_type adds a type into the db of types
 func add_type(t Type) {
+	if t.Name() == "restrict wchar_t**" {
+		fmt.Printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
+	}
 	_, exists := g_types[t.Name()]
 	if exists {
 		panic("cxxtypes: type [" + t.Name() + "] already in registry")
