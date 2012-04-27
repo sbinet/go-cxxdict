@@ -208,6 +208,7 @@ func (id *OverloadFunctionSet) Function(i int) *Function {
 
 // ----------------------------------------------------------------------------
 // make sure the interfaces are implemented
+
 var _ Id = (*Function)(nil)
 var _ Id = (*OverloadFunctionSet)(nil)
 
