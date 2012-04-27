@@ -186,5 +186,29 @@ func (t *Function) ReturnType() Type {
 	return t.ret
 }
 
+// OverloadFunctionSet is a set of functions which are part of the same overload
+type OverloadFunctionSet struct {
+	idBase `cxxtypes:"overloadfctset"`
+	fcts []*Function
+}
+
+// NumFunction returns the number of overloads in that set
+func (id *OverloadFunctionSet) NumFunction() int {
+	return len(id.fcts)
+}
+
+// Function returns the i-th overloaded function in the set
+// It panics if i is not in the range [0, NumFunction())
+func (id *OverloadFunctionSet) Function(i int) *Function {
+	if i < 0 || i >= id.NumFunction() {
+		panic("cxxtypes: Function index out of range")
+	}
+	return id.fcts[i]
+}
+
+// ----------------------------------------------------------------------------
+// make sure the interfaces are implemented
+var _ Id = (*Function)(nil)
+var _ Id = (*OverloadFunctionSet)(nil)
 
 // EOF
