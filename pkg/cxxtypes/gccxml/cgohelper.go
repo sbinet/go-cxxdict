@@ -1,13 +1,9 @@
 package gccxml
 
-//
+// #include <limits.h>
 // static int _go_gccxml_char_is_signed()
 // {
-//   char c = 255;
-//   if (c > 128) {
-//     return 0;
-//   }
-//   return 1;
+//   return CHAR_MIN < 0;
 // }
 import "C"
 
