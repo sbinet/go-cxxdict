@@ -320,7 +320,7 @@ type placeHolderType struct {
 }
 
 func NewPlaceHolder(name string) Type {
-	return &placeHolderType{name:name, typ:nil}
+	return &placeHolderType{name: name, typ: nil}
 }
 
 func (t *placeHolderType) sync() bool {
@@ -375,7 +375,6 @@ func (t *placeHolderType) to_commonType() *commonType {
 	return t.typ.to_commonType()
 }
 
-
 // func (t *commonType) CanonicalType() Type {
 // 	return t.canon
 // }
@@ -403,13 +402,50 @@ type FundamentalType struct {
 // NewQualType creates a new const-restrict-volatile qualified type.
 // The new qualifiers are added to the old ones of the base type.
 func NewQualType(n string, t Type, scope *Scope, qual TypeQualifier) (q Type) {
-	q = copy_cxxtype(t, scope)
-	ct := q.to_commonType()
-	ct.qual |= qual
-	//FIXME
-	ct.name = n//gen_new_name(t.Name(), qual)
+	q = &CvrQualType {
+		name:n,
+		qual : qual,
+		typ: t,
+		scope: scope,
+	}
 	add_type(q)
 	return
+}
+
+type CvrQualType struct {
+	name string
+	qual TypeQualifier
+	typ        Type // the decorated type
+	scope *Scope
+}
+
+func (t *CvrQualType) Name() string {
+	return t.name
+}
+
+func (t *CvrQualType) Size() uintptr {
+	return t.typ.Size()
+}
+
+func (t *CvrQualType) Kind() TypeKind {
+	return t.typ.Kind()
+}
+
+func (t *CvrQualType) Qualifiers() TypeQualifier {
+	return t.qual | t.typ.Qualifiers()
+}
+
+func (t *CvrQualType) DeclScope() *Scope {
+	return t.scope
+}
+
+func (t *CvrQualType) String() string {
+	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
+		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
+}
+
+func (t *CvrQualType) to_commonType() *commonType {
+	return t.typ.to_commonType()
 }
 
 // NewPtrType creates a new pointer type from an already existing type t.
@@ -528,7 +564,7 @@ func (t *ArrayType) Len() uintptr {
 }
 
 // NewStructType creates a new struct type.
-func NewStructType(n string, sz uintptr, members []Member, scope *Scope) *StructType {
+func NewStructType(n string, sz uintptr, scope *Scope) *StructType {
 	t := &StructType{
 		commonType: commonType{
 			size:  sz,
@@ -537,10 +573,11 @@ func NewStructType(n string, sz uintptr, members []Member, scope *Scope) *Struct
 			scope: scope,
 			name:  n,
 		},
-		members: make([]Member, 0, len(members)),
+		bases:   make([]Base, 0),
+		members: make([]Member, 0),
 	}
-	t.members = append(t.members, members...)
-	set_scope(t.members, t, scope)
+	// t.members = append(t.members, members...)
+	// set_scope(t.members, t, scope)
 	add_type(t)
 	return t
 }
@@ -548,6 +585,7 @@ func NewStructType(n string, sz uintptr, members []Member, scope *Scope) *Struct
 // StructType represents a C-struct type
 type StructType struct {
 	commonType `cxxtypes:"struct"`
+	bases      []Base
 	members    []Member
 }
 
@@ -563,6 +601,48 @@ func (t *StructType) Member(i int) *Member {
 		panic("cxxtypes: Member index out of range")
 	}
 	return &t.members[i]
+}
+
+// SetMembers sets the members of this struct type
+func (t *StructType) SetMembers(mbrs []Member) error {
+	t.members = make([]Member, len(mbrs))
+	copy(t.members, mbrs)
+	err := set_scope(t.members, t, t.scope)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// NumBase returns a struct type's base struct count
+func (t *StructType) NumBase() int {
+	return len(t.bases)
+}
+
+// Base returns a struct type's i'th base
+// it panics if i is not in the range [0, NumBase()0)
+func (t *StructType) Base(i int) *Base {
+	if i < 0 || i >= len(t.bases) {
+		panic("cxxtypes: Base index out of range")
+	}
+	return &t.bases[i]
+}
+
+// HasBase returns true if a struct has b as one of its base structs
+func (t *StructType) HasBase(b Type) bool {
+	for i, _ := range t.bases {
+		if t.bases[i].Type() == b {
+			return true
+		}
+	}
+	return false
+}
+
+// SetBases sets the bases of this struct type
+func (t *StructType) SetBases(bases []Base) error {
+	t.bases = make([]Base, len(bases))
+	copy(t.bases, bases)
+	return nil
 }
 
 // NewEnumType creates a new enum type.
@@ -642,7 +722,7 @@ type UnionType struct {
 }
 
 // NewClassType creates a new class type.
-func NewClassType(n string, sz uintptr, bases []Base, members []Member, scope *Scope) *ClassType {
+func NewClassType(n string, sz uintptr, scope *Scope) *ClassType {
 	t := &ClassType{
 		commonType: commonType{
 			size:  sz,
@@ -651,15 +731,15 @@ func NewClassType(n string, sz uintptr, bases []Base, members []Member, scope *S
 			scope: scope,
 			name:  n,
 		},
-		bases:   make([]Base, 0, len(bases)),
-		members: make([]Member, 0, len(members)),
+		bases:   make([]Base, 0),
+		members: make([]Member, 0),
 	}
-	t.bases = append(t.bases, bases...)
-	t.members = append(t.members, members...)
-	err := set_scope(t.members, t, scope)
-	if err != nil {
-		panic(err)
-	}
+	// t.bases = append(t.bases, bases...)
+	// t.members = append(t.members, members...)
+	// err := set_scope(t.members, t, scope)
+	// if err != nil {
+	// 	panic(err)
+	// }
 	add_type(t)
 	return t
 }
@@ -685,6 +765,17 @@ func (t *ClassType) Member(i int) *Member {
 	return &t.members[i]
 }
 
+// SetMembers sets the members of this class type
+func (t *ClassType) SetMembers(mbrs []Member) error {
+	t.members = make([]Member, len(mbrs))
+	copy(t.members, mbrs)
+	err := set_scope(t.members, t, t.scope)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // NumBase returns a class type's base class count
 func (t *ClassType) NumBase() int {
 	return len(t.bases)
@@ -707,6 +798,23 @@ func (t *ClassType) HasBase(b Type) bool {
 		}
 	}
 	return false
+}
+
+// SetBases sets the bases of this class type
+func (t *ClassType) SetBases(bases []Base) error {
+	t.bases = make([]Base, len(bases))
+	copy(t.bases, bases)
+	return nil
+}
+
+// NewBase creates a new base class/struct
+func NewBase(offset uintptr, typ Type, access AccessSpecifier, virtual bool) Base {
+	return Base{
+		offset:  offset,
+		typ:     typ,
+		access:  access,
+		virtual: virtual,
+	}
 }
 
 // Base represents a base class of a C++ class type
@@ -737,6 +845,15 @@ func (b *Base) Access() AccessSpecifier {
 // IsVirtual returns whether the derivation is virtual
 func (b *Base) IsVirtual() bool {
 	return b.virtual
+}
+
+func (b *Base) String() string {
+	hdr := ""
+	if b.IsVirtual() {
+		hdr = "virtual "
+	}
+	return fmt.Sprintf("Base{%s%s %s offset=%d}",
+		hdr, b.access.String(), b.typ.Name(), b.offset)
 }
 
 // NewMember creates a new member for a struct, class, enum or union
@@ -791,11 +908,12 @@ func (m *Member) IsDataMember() bool {
 }
 
 func (m *Member) IsEnumMember() bool {
-	return (m.kind & TK_Enum) != 0
+	return m.kind == TK_Enum
 }
 
 func (m *Member) IsFunctionMember() bool {
-	return (m.kind & (TK_FunctionProto | TK_FunctionNoProto)) != 0
+	return (m.kind == TK_FunctionProto) ||
+		(m.kind == TK_FunctionNoProto)
 }
 
 // // Specifier returns the or'ed valued of the type specifier.
@@ -825,6 +943,19 @@ func (m *Member) IsProtected() bool {
 
 func (m *Member) IsPrivate() bool {
 	return (m.access & AS_Private) != 0
+}
+
+func (m *Member) String() string {
+	hdr := "DMbr"
+	if m.IsEnumMember() {
+		hdr = "EMbr"
+	}
+	if m.IsFunctionMember() {
+		hdr = "FMbr"
+	}
+	return fmt.Sprintf("%s{%s type='%s' kind=%s|%d access=%s offset=%d}",
+		hdr,
+		m.name, m.typ.Name(), m.kind.String(), m.kind, m.access.String(), m.offset)
 }
 
 // NewFunctionType creates a new function type.
@@ -1026,6 +1157,20 @@ const (
 	AS_Public
 )
 
+func (a AccessSpecifier) String() string {
+	switch a {
+	case AS_None:
+		return "<none>"
+	case AS_Private:
+		return "private"
+	case AS_Protected:
+		return "protected"
+	case AS_Public:
+		return "public"
+	}
+	panic("unreachable")
+}
+
 // ----------------------------------------------------------------------------
 // helper functions
 
@@ -1046,9 +1191,6 @@ func set_scope(members []Member, t Type, outer *Scope) error {
 
 // add_type adds a type into the db of types
 func add_type(t Type) {
-	if t.Name() == "restrict wchar_t**" {
-		fmt.Printf("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n")
-	}
 	_, exists := g_types[t.Name()]
 	if exists {
 		panic("cxxtypes: type [" + t.Name() + "] already in registry")
@@ -1072,90 +1214,10 @@ func gen_new_name(n string, qual TypeQualifier) string {
 	return n
 }
 
-// copy_cxxtype returns a copy of the underlying concrete type
-func copy_cxxtype(t Type, scope *Scope) Type {
-	var o Type
-
-	switch t := t.(type) {
-
-	case *FundamentalType:
-		var tt FundamentalType = *t
-		o = &tt
-
-	case *PtrType:
-		var tt PtrType = *t
-		o = &tt
-
-	case *RefType:
-		var tt RefType = *t
-		o = &tt
-
-	case *TypedefType:
-		var tt TypedefType = *t
-		o = &tt
-
-	case *ArrayType:
-		var tt ArrayType = *t
-		o = &tt
-
-	case *StructType:
-		var tt StructType = *t
-		tt.members = make([]Member, len(t.members))
-		copy(tt.members, t.members)
-		err := set_scope(tt.members, &tt, scope)
-		if err != nil {
-			panic(err)
-		}
-		o = &tt
-
-	case *EnumType:
-		var tt EnumType = *t
-		tt.members = make([]Member, len(t.members))
-		copy(tt.members, t.members)
-		err := set_scope(tt.members, &tt, scope)
-		if err != nil {
-			panic(err)
-		}
-		o = &tt
-
-	case *UnionType:
-		var tt UnionType = *t
-		tt.members = make([]Member, len(t.members))
-		copy(tt.members, t.members)
-		err := set_scope(tt.members, &tt, scope)
-		if err != nil {
-			panic(err)
-		}
-		o = &tt
-
-	case *ClassType:
-		var tt ClassType = *t
-		//FIXME: should we copy the bases or just share them?
-		// -> share them for now.
-		//tt.bases = nil
-		tt.members = make([]Member, len(t.members))
-		copy(tt.members, t.members)
-		err := set_scope(tt.members, &tt, scope)
-		if err != nil {
-			panic(err)
-		}
-		o = &tt
-
-	case *FunctionType:
-		var tt FunctionType = *t
-		//FIXME: should we copy the parameters or just share them?
-		// -> share them for now.
-		o = &tt
-
-	default:
-		panic(fmt.Sprintf("cxxtypes: unknown type [%T]", t))
-	}
-	return o
-}
-
 // ----------------------------------------------------------------------------
 // make sure the interfaces are implemented
 
+var _ Type = (*CvrQualType)(nil)
 var _ Type = (*PtrType)(nil)
 var _ Type = (*RefType)(nil)
 var _ Type = (*TypedefType)(nil)

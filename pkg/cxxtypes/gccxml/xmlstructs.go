@@ -70,8 +70,11 @@ func (x *xmlTree) printStats() {
 	}
 
 	fmt.Printf("loaded [%d] array-types\n", len(x.Arrays))
-	for _, a := range x.Arrays {
-		fmt.Printf(" => '%s' %v\n", a.name(), a)
+	if g_dbg {
+		for _, a := range x.Arrays {
+			nn := genTypeName(a.id(), gtnCfg{})
+			fmt.Printf(" => '%s' -> '%s' %v\n", a.name(), nn, a)
+		}
 	}
 }
 
@@ -103,7 +106,22 @@ func (x *xmlTree) fixup() {
 		name := v.name()
 		if strings.HasPrefix(name, "operator") {
 			if name[8] == ' ' {
-				if !isAlpha(name[9]) && name[9] != '_' {
+				if isNum(name[9]) {
+					demangled := v.Demangled
+					pos := strings.Index(demangled, "::operator")
+					if pos == -1 {
+						pos = strings.Index(demangled, "operator")
+					} else {
+						pos += 2 // for the "::"
+					}
+					end := strings.Index(demangled, "(")
+					if end == -1 {
+						end = len(demangled) - 1
+					}
+					name = demangled[pos:end]
+					//fmt.Printf(";-; [%s] -> [%s] (%s) [%d:%d]\n", demangled, name, v.name(), pos, end)
+					v.set_name(name)
+				} else if !isAlpha(name[9]) && name[9] != '_' {
 					v.set_name("operator" + name[9:])
 				}
 			}
@@ -139,7 +157,59 @@ func (x *xmlTree) fixup() {
 		name := v.name()
 		if strings.HasPrefix(name, "operator") {
 			if name[8] == ' ' {
-				if !isAlpha(name[9]) && name[9] != '_' {
+				if isNum(name[9]) {
+					demangled := v.Demangled
+					pos := strings.Index(demangled, "::operator")
+					if pos == -1 {
+						pos = strings.Index(demangled, "operator")
+					} else {
+						pos += 2 // for the "::"
+					}
+					end := strings.Index(demangled, "(")
+					if end == -1 {
+						end = len(demangled) - 1
+					}
+					name = demangled[pos:end]
+					//fmt.Printf(";;; [%s] -> [%s] (%s) [%d:%d]\n", demangled, name, v.name(), pos, end)
+					v.set_name(name)
+				} else if !isAlpha(name[9]) && name[9] != '_' {
+					v.set_name("operator" + name[9:])
+				}
+			}
+		} else {
+			if isAlpha(name[0]) {
+				v.set_name("operator " + name)
+			} else {
+				v.set_name("operator" + name)
+			}
+		}
+		if !strings.HasPrefix(v.name(), "_ZT") {
+			v.set_name(addTemplateToName(v.name(), v.demangled()))
+			patchTemplateName(v)
+		}
+	}
+
+	// op-methods
+	for _, v := range x.Converters {
+		name := v.name()
+		if strings.HasPrefix(name, "operator") {
+			if name[8] == ' ' {
+				if isNum(name[9]) {
+					demangled := v.Demangled
+					pos := strings.Index(demangled, "::operator")
+					if pos == -1 {
+						pos = strings.Index(demangled, "operator")
+					} else {
+						pos += 2 // for the "::"
+					}
+					end := strings.Index(demangled, "(")
+					if end == -1 {
+						end = len(demangled) - 1
+					}
+					name = demangled[pos:end]
+					//fmt.Printf(";;; [%s] -> [%s] (%s) [%d:%d]\n", demangled, name, v.name(), pos, end)
+					v.set_name(name)
+				} else if !isAlpha(name[9]) && name[9] != '_' {
 					v.set_name("operator" + name[9:])
 				}
 			}
@@ -180,10 +250,6 @@ func (x *xmlTree) gencxxscopes() error {
 			return
 		}
 		dbg := false
-		if v.name() == "id" || v.name() == "locale" {
-			dbg = true
-			fmt.Printf("===============================\n")
-		}
 		scope := cxxtypes.Universe
 		scopeids := []string{v.id()}
 		var vv i_context = v
@@ -292,81 +358,81 @@ func (x *xmlTree) gencxxtypes() error {
 	}
 
 	for _, v := range x.Arrays {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Classes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.CvQualifiedTypes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Enumerations {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Functions {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.FunctionTypes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.MethodTypes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.OperatorFunctions {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.PointerTypes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.ReferenceTypes {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Structs {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Typedefs {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	for _, v := range x.Unions {
-		fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
-		t := gentype_from_gccxml(v)
-		fmt.Printf("%v\n", t)
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gentype_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
 	}
 
 	return nil
@@ -380,14 +446,14 @@ func (x *xmlTree) id() string {
 type idDB map[string]i_id
 
 type xmlArgument struct {
-	Attributes string `xml:"attributes,attr"`
-	File       string `xml:"file,attr"`
-	Id         string `xml:"id,attr"`
-	Line       string `xml:"line,attr"`
-	Location   string `xml:"location,attr"`
-	Name       string `xml:"name,attr"`
-	Type       string `xml:"type,attr"`
-	Default    string `xml:"default,attr"`
+	Attributes string  `xml:"attributes,attr"`
+	File       string  `xml:"file,attr"`
+	Id         string  `xml:"id,attr"`
+	Line       string  `xml:"line,attr"`
+	Location   string  `xml:"location,attr"`
+	Name       string  `xml:"name,attr"`
+	Type       string  `xml:"type,attr"`
+	Default    *string `xml:"default,attr,omitempty"`
 }
 
 func (x *xmlArgument) id() string {
@@ -1140,8 +1206,10 @@ func (x *xmlMethod) offset() uintptr {
 type xmlMethodType struct {
 	Attributes string `xml:"attributes,attr"` // implied
 	BaseType   string `xml:"basetype,attr"`
+	Const      string `xml:"const,attr"`
 	Id         string `xml:"id,attr"`
 	Returns    string `xml:"returns,attr"`
+	Volatile   string `xml:"volatile,attr"`
 
 	Arguments []xmlArgument `xml:"Argument"`
 	Ellipsis  xmlEllipsis   `xml:"Ellipsis"`
@@ -1600,6 +1668,11 @@ func isAlphaNum(c uint8) bool {
 		('A' <= c && c <= 'Z')
 }
 
+// isNum reports whether the byte is a number
+func isNum(c uint8) bool {
+	return ('0' <= c && c <= '9')
+}
+
 // isAlpha reports whether the byte is an ASCII letter
 func isAlpha(c uint8) bool {
 	return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
@@ -1727,14 +1800,6 @@ func patchTemplateName(node i_id) {
 	rep = regexp.MustCompile(
 		`-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b`).ReplaceAllString(rep, `-\1`)
 	name = string(name[:tmplpos]) + rep + name[tmplend:]
-	//FIXME:
-	// # replace template argument "12u" or "12ul" by "12":
-	// rep = re.sub(r"\b([\d]+)ul?\b", '\\1', name[postmplt:postmpltend])
-	// # replace -0x00000000000000001 by -1
-	// rep = re.sub(r"-0x0*([1-9A-Fa-f][0-9A-Fa-f]*)\b", '-\\1', rep)
-	// name = name[:postmplt] + rep + name[postmpltend:]
-	// attrs['name'] = name
-
 	n.set_name(name)
 	//println("--", name, tmpl, n.name())
 
@@ -1935,14 +2000,22 @@ type gtnCfg struct {
 }
 
 func genTypeName(id string, cfg gtnCfg) string {
-	fmt.Printf("==gtn==[%s]...\n", id)
+	//fmt.Printf("==gtn==[%s]...\n", id)
+	gidx := gidname{id, cfg}
+	if gid, ok := g_ids_name[gidx]; ok {
+		//fmt.Printf("==gtn==[%s]... (from cache: %s)\n", id, gid)
+		return gid
+	}
+
 	node := g_ids[id]
 	if dnode, ok := node.(i_mangler); ok {
 		if isUnnamedType(dnode.demangled()) {
 			if cfg.colon {
-				return "__" + dnode.demangled()
+				g_ids_name[gidx] = "__" + dnode.demangled()
+				return g_ids_name[gidx]
 			} else {
-				return dnode.demangled()
+				g_ids_name[gidx] = dnode.demangled()
+				return g_ids_name[gidx]
 			}
 		}
 	}
@@ -1952,15 +2025,8 @@ func genTypeName(id string, cfg gtnCfg) string {
 
 	nid := ""
 	if strings.HasSuffix(id, "r") {
-		if id == "_1254r" {
-			println("$$$$$$$$$$$$$>>>-res")
-		}
-		tn := genTypeName(id[:len(id)-1], cfg)
-		if id == "_1254r" {
-			println("$$: restrict + [",tn,"]")
-			println("$$$$$$$$$$$$$>>>-res")
-		}
-		return "restrict "+tn
+		g_ids_name[gidx] = "restrict " + genTypeName(id[:len(id)-1], cfg)
+		return g_ids_name[gidx]
 	}
 	if strings.HasSuffix(id, "v") ||
 		strings.HasSuffix(id, "c") {
@@ -2035,15 +2101,14 @@ func genTypeName(id string, cfg gtnCfg) string {
 		default:
 			panic("unreachable")
 		}
-		fmt.Printf("^^^ %s [%s|%s] (t=%T)'%s' %s\n",id,nid,tn,node,cvdict[id[len(id)-1]], cfg.const_veto)
-		return tn
+		//fmt.Printf("^^^ %s [%s|%s] (t=%T)'%s' %v\n", id, nid, tn, node, cvdict[id[len(id)-1]], cfg.const_veto)
+		g_ids_name[gidx] = tn
+		return g_ids_name[gidx]
 	}
 
-	// at this point, we don't care about const-correctness
-	//cfg.const_veto = true
-	println("***|", id)
+	//println("***|", id)
 	s := genScopeName(id, cfg)
-	println("***||", id)
+	//println("***||", id)
 	switch tt := node.(type) {
 	case *xmlNamespace:
 		if tt.name() == "" {
@@ -2060,14 +2125,19 @@ func genTypeName(id string, cfg gtnCfg) string {
 			tn = strings.Replace(tn, "::*)", "::**)", -1)
 			tn = strings.Replace(tn, "::)", "::*)", -1)
 			tn = strings.Replace(tn, "(*)", "(**)", -1)
-			s += tn
+			// 's =' is on purpose!
+			s = tn
 		} else {
-			s += tn + "*"
+			// 's =' is on purpose!
+			s = tn + "*"
 		}
 
 	case *xmlReferenceType:
-		println("-+-+-&", tt.Type)
-		s += genTypeName(tt.Type, cfg) + "&"
+		//println("-+-+-&", tt.Type)
+		tn := genTypeName(tt.Type, cfg) 
+		// 's =' is on purpose!
+		s = tn + "&"
+		//fmt.Printf(";;; tn=[%s] -> ref=[%s]\n", tn, s)
 
 	case *xmlFunctionType:
 		// 's =' is on purpose!
@@ -2099,13 +2169,12 @@ func genTypeName(id string, cfg gtnCfg) string {
 		} else {
 			s += "void)"
 		}
-		// FIXME
-		// if str_to_bool(tt.Const) {
-		// 	s += " const"
-		// }
-		// if str_to_bool(tt.Volatile) {
-		// 	s += " volatile"
-		// }
+		if str_to_bool(tt.Const) {
+			s += " const"
+		}
+		if str_to_bool(tt.Volatile) {
+			s += " volatile"
+		}
 
 	case *xmlArray:
 		max := strings.TrimRight(tt.Max, "u")
@@ -2117,13 +2186,16 @@ func genTypeName(id string, cfg gtnCfg) string {
 			}
 			arr = fmt.Sprintf("[%d]", dim+1)
 		}
-		println("--array--, dim:", arr, "type:", tt.Type)
+		//println("--array--, dim:", arr, "type:", tt.Type)
 		tn := genTypeName(tt.Type, cfg)
+		// 's =' is on purpose!
 		if strings.HasSuffix(tn, "]") {
 			pos := strings.Index(tn, "[")
-			s += tn[:pos] + arr + tn[pos:]
+			// 's =' is on purpose!
+			s = tn[:pos] + arr + tn[pos:]
 		} else {
-			s += tn + arr
+			// 's =' is on purpose!
+			s = tn + arr
 		}
 
 	case *xmlUnimplemented:
@@ -2164,6 +2236,7 @@ func genTypeName(id string, cfg gtnCfg) string {
 		// normalize STL class namespaces, primitives, etc...
 		s = normalizeClass(s, cfg.alltmpl)
 	}
+	g_ids_name[gidx] = s
 	return s
 }
 
@@ -2178,29 +2251,16 @@ func isUnnamedType(name string) bool {
 
 func genScopeName(id string, cfg gtnCfg) string {
 	s := ""
-	dbg := false
-	if id == "_1737" {
-		dbg = true
-	}
-	if dbg {
-		println("&&>",id)
-	}
 	var node i_id
 	// climb the context tree up as long as the embedding context is unnamed
 	for {
 		node = g_ids[id]
 		t, ok := node.(i_context)
-		if dbg {
-			println("...", id, ok)
-		}
 		if ok {
 			id = t.context()
 			node = g_ids[id]
 			tn, ok := node.(i_name)
 			if ok && tn.name() != "" && strings.Index(tn.name(), ".") == -1 {
-				if dbg {
-					println("...",id,ok,t.name(), t.context(),">>break")
-				}
 				break
 			}
 		} else {
@@ -2209,7 +2269,6 @@ func genScopeName(id string, cfg gtnCfg) string {
 	}
 	ns := ""
 	if id != "" {
-		println("&&<<",id)
 		ns = genTypeName(id, cfg)
 	}
 	if ns != "" {
@@ -2259,14 +2318,6 @@ func getScopeChainNames(node i_context) []string {
 func getCxxtypesScope(node i_id) *cxxtypes.Scope {
 	scope := cxxtypes.Universe
 	dbg := false
-	if node.id() == "_4490" ||
-		node.id() == "_2658" ||
-		node.id() == "_2569" ||
-		node.id() == "_941" ||
-		node.id() == "_2" ||
-		node.id() == "_112" {
-		dbg = true
-	}
 	if n, ok := node.(i_context); ok {
 		scopenames := getScopeChainNames(n)
 		if dbg {
@@ -2303,23 +2354,16 @@ func getCxxtypesScope(node i_id) *cxxtypes.Scope {
 	return scope
 }
 
-var g_processing_ids map[string]bool = make(map[string]bool)
-
 func gentype_from_gccxml(node i_id) cxxtypes.Type {
-
-	fmt.Printf("::gentype(%s)...\n", node.id())
 
 	// has that type already been processed ?
 	if tname, ok := g_processed_ids[node.id()]; ok {
-		fmt.Printf("::gentype(%s)... already processed (%s)\n",
-			node.id(), tname)
 		return cxxtypes.TypeByName(tname)
 	}
 
 	// are we processing that id ?
 	if proc, ok := g_processing_ids[node.id()]; ok && proc {
 		n := genTypeName(node.id(), gtnCfg{})
-		fmt.Printf("::gentype(%s)... is BEING processed (putting placeholder for [%s])!\n", node.id(), n)
 		return cxxtypes.NewPlaceHolder(n)
 	}
 
@@ -2337,9 +2381,8 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		mbrs = strings.TrimSpace(mbrs)
 		for _, mbrid := range strings.Split(mbrs, " ") {
 			tmbr, ok := g_ids[mbrid]
-			fmt.Printf("***> [%s] [%v]\n", mbrid, tmbr)
 			if !ok {
-				panic(fmt.Sprintf(">>>>>>> no such id [%s]", mbrid))
+				panic(fmt.Sprintf("gccxml: no such id [%s]", mbrid))
 			}
 			mbr := tmbr.(i_field)
 			members = append(members,
@@ -2355,6 +2398,54 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		return members
 	}
 
+	gen_enum_mbrs := func(mbrs []xmlEnumValue,
+		scope *cxxtypes.Scope) []cxxtypes.Member {
+		members := make([]cxxtypes.Member, 0)
+		if len(mbrs) == 0 {
+			return members
+		}
+
+		// fixme: that's not always true... (could be unsigned int...)
+		typ := cxxtypes.TypeByName("int")
+		for _, mbr := range mbrs {
+			members = append(members,
+				cxxtypes.NewMember(
+					mbr.Name,
+					typ,
+					cxxtypes.TK_Int,
+					cxxtypes.AS_Public,
+					uintptr(0),
+					scope,
+				))
+		}
+		return members
+	}
+
+	gen_args := func(args []xmlArgument) []cxxtypes.Parameter {
+		params := make([]cxxtypes.Parameter, 0, len(args))
+		for _, arg := range args {
+			p := cxxtypes.NewParameter(
+				arg.Name,
+				gentype_from_gccxml(g_ids[arg.Type]),
+				arg.Default != nil,
+			)
+			params = append(params, *p)
+		}
+		return params
+	}
+
+	gen_bases := func(xbases []xmlBase) []cxxtypes.Base {
+		bases := make([]cxxtypes.Base, 0)
+		for _, b := range xbases {
+			access := str_to_access(b.Access)
+			typ := gentype_from_gccxml(g_ids[b.Type])
+			offset := str_to_uintptr(b.Offset)
+			virtual := str_to_bool(b.Virtual)
+			bases = append(bases, cxxtypes.NewBase(offset, typ, access, virtual))
+		}
+		return bases
+	}
+
 	switch t := node.(type) {
 
 	case *xmlFundamentalType:
@@ -2368,7 +2459,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlConstructor:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_Method | cxxtypes.TS_Constructor
 		if str_to_bool(t.Extern) {
@@ -2376,9 +2467,9 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{}        //FIXME
-		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		ct = cxxtypes.NewFunctionType(
 			scoped_name,
 			qual,
@@ -2391,7 +2482,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlConverter:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_Method | cxxtypes.TS_Converter
 		if str_to_bool(t.Extern) {
@@ -2399,9 +2490,9 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{}        //FIXME
-		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		scope := getCxxtypesScope(t)
+		params := []cxxtypes.Parameter{}
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
 			scoped_name,
 			qual,
@@ -2432,8 +2523,8 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 	case *xmlPointerType:
 		typ := gentype_from_gccxml(g_ids[t.Type])
 		scope := getCxxtypesScope(t)
-		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//scoped_name := genTypeName(t.id(), gtnCfg{})
+		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		ct = cxxtypes.NewPtrType(typ, scope)
 
 	case *xmlReferenceType:
@@ -2443,7 +2534,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlDestructor:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_Method | cxxtypes.TS_Destructor
 		if str_to_bool(t.Extern) {
@@ -2454,7 +2545,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{}        //FIXME
+		params := []cxxtypes.Parameter{}
 		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		scope := getCxxtypesScope(t)
 		ct = cxxtypes.NewFunctionType(
@@ -2469,24 +2560,21 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlEnumeration:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--enum(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("--enum(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		scope := getCxxtypesScope(t)
-		fmt.Printf("**> [%s] [%s] mbrs:[%d]\n", t.name(), scoped_name, 
-			len(t.EnumValues))
-		// FIXME
-		mbrs := []cxxtypes.Member{}//gen_mbrs(t.Members, scope)
+		mbrs := gen_enum_mbrs(t.EnumValues, scope)
 		ct = cxxtypes.NewEnumType(scoped_name, mbrs, scope)
-		
+
 	case *xmlFunctionType:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--fct-type(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("--fct-type(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_None
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{} //FIXME
-		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
 			scoped_name,
 			qual,
@@ -2499,16 +2587,15 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlFunction:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("--fct-type(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_None
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{} //FIXME
-		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
-			scoped_name+"[@@@]"+t.id(), //FIXME: handle overload-set
+			scoped_name+" --@@@--"+t.id(), //FIXME: handle overload-set
 			qual,
 			spec,
 			variadic,
@@ -2521,22 +2608,31 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		sz := str_to_uintptr(t.Size)
 		scope := getCxxtypesScope(t)
-		fmt.Printf("**> [%s] [%s] mbrs:[%s]\n", t.name(), scoped_name, t.Members)
-		mbrs := gen_mbrs(t.Members, scope)
-		ct = cxxtypes.NewStructType(scoped_name, sz, mbrs, scope)
+		st := cxxtypes.NewStructType(scoped_name, sz, scope)
+		// un-mark from processing:
+		delete(g_processing_ids, node.id())
+		g_processed_ids[node.id()] = st.Name()
+		//
+		st.SetMembers(gen_mbrs(t.Members, scope))
+		st.SetBases(gen_bases(t.Bases))
+		ct = st
 
 	case *xmlClass:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		sz := str_to_uintptr(t.Size)
-		mbrs := []cxxtypes.Member{} //FIXME
-		bases := []cxxtypes.Base{}  //FIXME
 		scope := getCxxtypesScope(t)
-		println("**>", t.name(), scoped_name)
-		ct = cxxtypes.NewClassType(scoped_name, sz, bases, mbrs, scope)
+		st := cxxtypes.NewClassType(scoped_name, sz, scope)
+		// un-mark from processing:
+		delete(g_processing_ids, node.id())
+		g_processed_ids[node.id()] = st.Name()
+		//
+		st.SetMembers(gen_mbrs(t.Members, scope))
+		st.SetBases(gen_bases(t.Bases))
+		ct = st
 
 	case *xmlMethod:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("++(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("++(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		if str_to_bool(t.Const) {
 			qual |= cxxtypes.TQ_Const
@@ -2553,9 +2649,9 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{} //FIXME
-		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
 			scoped_name,
 			qual,
@@ -2568,7 +2664,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlOperatorMethod:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("+-(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("+-(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		if str_to_bool(t.Const) {
 			qual |= cxxtypes.TQ_Const
@@ -2585,9 +2681,9 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{} //FIXME
-		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
 			scoped_name,
 			qual,
@@ -2600,7 +2696,7 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 
 	case *xmlOperatorFunction:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		fmt.Printf("+-op-fct(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
+		//fmt.Printf("+-op-fct(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		qual := cxxtypes.TQ_None
 		spec := cxxtypes.TS_Operator
 		if str_to_bool(t.Extern) {
@@ -2611,11 +2707,11 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		}
 		variadic := strings.Contains(scoped_name, "...")
 
-		params := []cxxtypes.Parameter{} //FIXME
-		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		scope := getCxxtypesScope(t)
+		params := gen_args(t.Arguments)
+		ret_type := gentype_from_gccxml(g_ids[t.Returns])
 		ct = cxxtypes.NewFunctionType(
-			scoped_name+"[@@@]"+t.id(), //FIXME: handle overload-set
+			scoped_name+" --@@@--"+t.id(), //FIXME: handle overload-set
 			qual,
 			spec,
 			variadic,
@@ -2634,16 +2730,14 @@ func gentype_from_gccxml(node i_id) cxxtypes.Type {
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		//sz := str_to_uintptr(t.Size)
 		scope := getCxxtypesScope(t)
-		fmt.Printf("**> [%s] [%s] mbrs:[%s]\n", t.name(), scoped_name, t.Members)
+		//fmt.Printf("**> [%s] [%s] mbrs:[%s]\n", t.name(), scoped_name, t.Members)
 		mbrs := gen_mbrs(t.Members, scope)
 		ct = cxxtypes.NewUnionType(scoped_name, mbrs, scope)
 
 	default:
-		println("+++++++++++++++", t.id())
 		panic(fmt.Sprintf("unhandled type [%T] (%s)", t, t.id()))
 	}
 
-	fmt.Printf("::gentype(%s)... [done]\n", node.id())
 	// un-mark from processing:
 	delete(g_processing_ids, node.id())
 	g_processed_ids[node.id()] = ct.Name()

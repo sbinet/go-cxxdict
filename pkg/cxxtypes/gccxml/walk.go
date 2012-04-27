@@ -26,85 +26,85 @@ func walk(v i_visitor, node i_id) {
 
 	switch n := node.(type) {
 	case *xmlTree:
-		for _,vv := range n.FundamentalTypes {
+		for _, vv := range n.FundamentalTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Arrays {
+		for _, vv := range n.Arrays {
 			walk(v, vv)
 		}
-		for _,vv := range n.Classes {
+		for _, vv := range n.Classes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Constructors {
+		for _, vv := range n.Constructors {
 			walk(v, vv)
 		}
-		for _,vv := range n.Converters {
+		for _, vv := range n.Converters {
 			walk(v, vv)
 		}
-		for _,vv := range n.CvQualifiedTypes {
+		for _, vv := range n.CvQualifiedTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Destructors {
+		for _, vv := range n.Destructors {
 			walk(v, vv)
 		}
-		for _,vv := range n.Enumerations {
+		for _, vv := range n.Enumerations {
 			walk(v, vv)
 		}
-		for _,vv := range n.Fields {
+		for _, vv := range n.Fields {
 			walk(v, vv)
 		}
-		for _,vv := range n.Files {
+		for _, vv := range n.Files {
 			walk(v, vv)
 		}
-		for _,vv := range n.Functions {
+		for _, vv := range n.Functions {
 			walk(v, vv)
 		}
-		for _,vv := range n.FunctionTypes {
+		for _, vv := range n.FunctionTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.FundamentalTypes {
+		for _, vv := range n.FundamentalTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Methods {
+		for _, vv := range n.Methods {
 			walk(v, vv)
 		}
-		for _,vv := range n.MethodTypes {
+		for _, vv := range n.MethodTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Namespaces {
+		for _, vv := range n.Namespaces {
 			walk(v, vv)
 		}
-		for _,vv := range n.NamespaceAliases {
+		for _, vv := range n.NamespaceAliases {
 			walk(v, vv)
 		}
-		for _,vv := range n.OperatorFunctions {
+		for _, vv := range n.OperatorFunctions {
 			walk(v, vv)
 		}
-		for _,vv := range n.OperatorMethods {
+		for _, vv := range n.OperatorMethods {
 			walk(v, vv)
 		}
-		for _,vv := range n.OffsetTypes {
+		for _, vv := range n.OffsetTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.PointerTypes {
+		for _, vv := range n.PointerTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.ReferenceTypes {
+		for _, vv := range n.ReferenceTypes {
 			walk(v, vv)
 		}
-		for _,vv := range n.Structs {
+		for _, vv := range n.Structs {
 			walk(v, vv)
 		}
-		for _,vv := range n.Typedefs {
+		for _, vv := range n.Typedefs {
 			walk(v, vv)
 		}
-		for _,vv := range n.Unimplementeds {
+		for _, vv := range n.Unimplementeds {
 			walk(v, vv)
 		}
-		for _,vv := range n.Unions {
+		for _, vv := range n.Unions {
 			walk(v, vv)
 		}
-		for _,vv := range n.Variables {
+		for _, vv := range n.Variables {
 			walk(v, vv)
 		}
 
@@ -142,4 +142,3 @@ func walk(v i_visitor, node i_id) {
 		panic(fmt.Sprintf("unknown type [%T]", n))
 	}
 }
-

@@ -57,7 +57,6 @@ var names_to_normalize [][]string = [][]string{
 		"vector<std::vector<int> >",
 		"vector<std::vector<int,std::allocator<int> >,std::allocator<std::vector<int,std::allocator<int> > > >"},
 
-
 	// stl-set
 	{"set<int,std::less<int>,std::allocator<int> >",
 		"set<int>",
@@ -112,44 +111,43 @@ func eq_strslice(s1, s2 []string) bool {
 }
 
 type str_results struct {
-	input string
+	input    string
 	expected []string
 }
 
 func TestGetTemplateArgs(t *testing.T) {
 	names := []str_results{
-		{ input:"std::vector<int>",
-			expected: []string{"int",},},
+		{input: "std::vector<int>",
+			expected: []string{"int"}},
 
-		{ input:"std::vector<unsigned int>",
-			expected: []string{"unsigned int",},},
+		{input: "std::vector<unsigned int>",
+			expected: []string{"unsigned int"}},
 
-		{ input:"std::vector<int,std::allocator<int> >",
-			expected: []string{"int", "std::allocator<int>"},},
+		{input: "std::vector<int,std::allocator<int> >",
+			expected: []string{"int", "std::allocator<int>"}},
 
-		{ input:"std::vector<unsigned int,std::allocator<unsigned int> >",
-			expected: []string{"unsigned int", "std::allocator<unsigned int>"},},
+		{input: "std::vector<unsigned int,std::allocator<unsigned int> >",
+			expected: []string{"unsigned int", "std::allocator<unsigned int>"}},
 
-		{ input:"std::set<int>",
-			expected: []string{"int",},},
-		
-		{ input:"std::set<int,std::less<int>,std::allocator<int> >",
-			expected: []string{"int", "std::less<int>", "std::allocator<int>"},},
-		
-		{ input:"std::set<unsigned int,std::less<unsigned int>,std::allocator<unsigned int> >",
-			expected: []string{"unsigned int", "std::less<unsigned int>", "std::allocator<unsigned int>"},},
+		{input: "std::set<int>",
+			expected: []string{"int"}},
 
-		{ input: "std::map<int,long>",
-			expected: []string{"int","long"}, },
-		
-		{ input: "std::map<int,unsigned long>",
-			expected: []string{"int","unsigned long"}, },
-		
-		{ input: "std::map<int,unsigned long,std::less<int>,std::allocator<std::pair<int,unsigned long> > >",
-			expected: []string{"int","unsigned long","std::less<int>","std::allocator<std::pair<int,unsigned long> >"}, },
-		
+		{input: "std::set<int,std::less<int>,std::allocator<int> >",
+			expected: []string{"int", "std::less<int>", "std::allocator<int>"}},
+
+		{input: "std::set<unsigned int,std::less<unsigned int>,std::allocator<unsigned int> >",
+			expected: []string{"unsigned int", "std::less<unsigned int>", "std::allocator<unsigned int>"}},
+
+		{input: "std::map<int,long>",
+			expected: []string{"int", "long"}},
+
+		{input: "std::map<int,unsigned long>",
+			expected: []string{"int", "unsigned long"}},
+
+		{input: "std::map<int,unsigned long,std::less<int>,std::allocator<std::pair<int,unsigned long> > >",
+			expected: []string{"int", "unsigned long", "std::less<int>", "std::allocator<std::pair<int,unsigned long> >"}},
 	}
-	for _,v := range names {
+	for _, v := range names {
 		out := getTemplateArgs(v.input)
 		if !eq_strslice(out, v.expected) {
 			t.Errorf("expected %v, got %v (input='%s')", v.expected, out, v.input)
@@ -184,7 +182,6 @@ var names_to_cls_normalize [][]string = [][]string{
 		"long",
 		"long"},
 
-
 	// stl-vector
 	{"std::vector<int,std::allocator<int> >",
 		"std::vector<int>",
@@ -198,7 +195,6 @@ var names_to_cls_normalize [][]string = [][]string{
 	{"std::vector<std::vector<int,std::allocator<int> >,std::allocator<std::vector<int,std::allocator<int> > > >",
 		"std::vector<std::vector<int> >",
 		"std::vector<std::vector<int,std::allocator<int> >,std::allocator<std::vector<int,std::allocator<int> > > >"},
-
 
 	// stl-set
 	{"std::set<int,std::less<int>,std::allocator<int> >",
@@ -225,17 +221,17 @@ var names_to_cls_normalize [][]string = [][]string{
 	{"MyFooCls<int,std::less<int> >", "MyFooCls<int>", "MyFooCls<int,std::less<int> >"},
 
 	// string
-	{"std::string", "std::string", "std::string",},
-	{"std::wstring", "std::wstring", "std::wstring",},
+	{"std::string", "std::string", "std::string"},
+	{"std::wstring", "std::wstring", "std::wstring"},
 
-	{"std::basic_string<char,std::char_traits<char>,std::allocator<char> >", 
-		"std::basic_string<char>", 
-		"std::basic_string<char,std::char_traits<char>,std::allocator<char> >",},
+	{"std::basic_string<char,std::char_traits<char>,std::allocator<char> >",
+		"std::basic_string<char>",
+		"std::basic_string<char,std::char_traits<char>,std::allocator<char> >"},
 }
 
 func TestNormalizeClass(t *testing.T) {
 	alltmpl := false
-	for _,v := range names_to_cls_normalize {
+	for _, v := range names_to_cls_normalize {
 		out := normalizeClass(v[0], alltmpl)
 		if out != v[1] {
 			t.Errorf("expected [%s], got [%s] (input='%s')", v[1], out, v[0])
@@ -245,7 +241,7 @@ func TestNormalizeClass(t *testing.T) {
 
 func TestNormalizeClass_alltmpl(t *testing.T) {
 	alltmpl := true
-	for _,v := range names_to_cls_normalize {
+	for _, v := range names_to_cls_normalize {
 		out := normalizeClass(v[0], alltmpl)
 		if out != v[2] {
 			t.Errorf("expected [%s], got [%s] (input='%s')", v[2], out, v[0])
@@ -255,20 +251,20 @@ func TestNormalizeClass_alltmpl(t *testing.T) {
 
 func TestAddTemplateToName(t *testing.T) {
 	tests := [][]string{
-		{"tmpl_fct", 
-			"void NS::tmpl_fct<int>()", 
+		{"tmpl_fct",
+			"void NS::tmpl_fct<int>()",
 			"tmpl_fct<int>"},
-		{"tmpl_fct", 
-			"void NS::tmpl_fct<unsigned int>()", 
+		{"tmpl_fct",
+			"void NS::tmpl_fct<unsigned int>()",
 			"tmpl_fct<unsigned int>"},
-		{"tmpl_fct", 
-			"void NS::tmpl_fct<int,unsigned int>()", 
+		{"tmpl_fct",
+			"void NS::tmpl_fct<int,unsigned int>()",
 			"tmpl_fct<int,unsigned int>"},
-		{"tmpl_fct", 
-			"void NS::tmpl_fct<int,unsigned int>(int a, unsigned int b)", 
+		{"tmpl_fct",
+			"void NS::tmpl_fct<int,unsigned int>(int a, unsigned int b)",
 			"tmpl_fct<int,unsigned int>"},
 	}
-	for _,v := range tests {
+	for _, v := range tests {
 		out := addTemplateToName(v[0], v[1])
 		if out != v[2] {
 			t.Errorf("expected [%s], got [%s] (input: name='%s', demangled='%s')",
@@ -278,5 +274,5 @@ func TestAddTemplateToName(t *testing.T) {
 }
 func init() {
 	// test custom templated-class with user-provided template-defaults
-	g_stldeftable["MyFooCls"] = []string{ "=", "std::less", }
+	g_stldeftable["MyFooCls"] = []string{"=", "std::less"}
 }

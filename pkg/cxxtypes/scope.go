@@ -98,7 +98,6 @@ var objKindStrings = [...]string{
 
 func (kind ObjKind) String() string { return objKindStrings[kind] }
 
-
 // 
 var (
 	Universe *Scope
@@ -139,7 +138,7 @@ func init() {
 
 	define(OK_Typ, "float", Universe)
 	define(OK_Typ, "double", Universe)
-	
+
 	define(OK_Typ, "float complex", Universe)
 	define(OK_Typ, "double complex", Universe)
 

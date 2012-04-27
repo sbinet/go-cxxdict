@@ -25,6 +25,17 @@ var g_ids idDB = make(idDB, 128)
 // a cache of already processed ids (and their fully qualified name)
 var g_processed_ids map[string]string
 
+// a cache of ids being processed
+var g_processing_ids map[string]bool = make(map[string]bool)
+
+type gidname struct {
+	id string
+	cfg gtnCfg
+}
+
+// a cache of id->name filled by genTypeName
+var g_ids_name map[gidname]string = make(map[gidname]string)
+
 // LoadTypes reads an XML file produced by GCC_XML and fills the cxxtypes' registry accordingly.
 func LoadTypes(fname string) error {
 	data, err := ioutil.ReadFile(fname)
@@ -69,6 +80,8 @@ func LoadTypes(fname string) error {
 		{
 			names := []string{
 				"const char*",
+				"char const*",
+				"char*const",
 				"int",
 				"Foo",
 				"IFoo",
@@ -92,12 +105,52 @@ func LoadTypes(fname string) error {
 			}
 			fmt.Printf("++++++++++++++++++++++++++\n")
 		}
+		{
+			names := []string{
+				"Foo",
+				"Alg",
+				"WithPrivateBase",
+				"LongStr_t",
+			}
+			for _,n := range names {
+				t := cxxtypes.TypeByName(n)
+				if t == nil {
+					fmt.Printf("could not inspect type [%s]\n", n)
+					continue
+				}
+				fmt.Printf(":: inspecting [%s]...\n", n)
+				switch tt := t.(type) {
+				case *cxxtypes.ClassType:
+					fmt.Printf(" #bases: %d\n", tt.NumBase())
+					for i := 0; i < tt.NumBase(); i++ {
+						b :=  tt.Base(i)
+						fmt.Printf(" base[%d]: %v\n", i, b)
+					}
+					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
+					for i := 0; i < tt.NumMember(); i++ {
+						m :=  tt.Member(i)
+						fmt.Printf(" mbr[%d]: %v\n", i, m)
+					}
+				case *cxxtypes.StructType:
+					fmt.Printf(" #bases: %d\n", tt.NumBase())
+					for i := 0; i < tt.NumBase(); i++ {
+						b :=  tt.Base(i)
+						fmt.Printf(" base[%d]: %v\n", i, b)
+					}
+					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
+					for i := 0; i < tt.NumMember(); i++ {
+						m :=  tt.Member(i)
+						fmt.Printf(" mbr[%d]: %v\n", i, m)
+					}
+				}
+			}
+		}
 		names := cxxtypes.TypeNames()
+		fmt.Printf("== distilled [%d] types.\n", len(names))
 		// for _,n := range names {
 		// 	t := cxxtypes.TypeByName(n)
 		// 	fmt.Printf("[%s]: %v\n", n, t)
 		// }
-		fmt.Printf("== distilled [%d] types.\n", len(names))
 
 	}
 	return err
