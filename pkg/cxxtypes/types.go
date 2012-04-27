@@ -402,10 +402,10 @@ type FundamentalType struct {
 // NewQualType creates a new const-restrict-volatile qualified type.
 // The new qualifiers are added to the old ones of the base type.
 func NewQualType(n string, t Type, scope *Scope, qual TypeQualifier) (q Type) {
-	q = &CvrQualType {
-		name:n,
-		qual : qual,
-		typ: t,
+	q = &CvrQualType{
+		name:  n,
+		qual:  qual,
+		typ:   t,
 		scope: scope,
 	}
 	add_type(q)
@@ -413,9 +413,9 @@ func NewQualType(n string, t Type, scope *Scope, qual TypeQualifier) (q Type) {
 }
 
 type CvrQualType struct {
-	name string
-	qual TypeQualifier
-	typ        Type // the decorated type
+	name  string
+	qual  TypeQualifier
+	typ   Type // the decorated type
 	scope *Scope
 }
 
@@ -953,9 +953,9 @@ func (m *Member) String() string {
 	if m.IsFunctionMember() {
 		hdr = "FMbr"
 	}
-	return fmt.Sprintf("%s{%s type='%s' kind=%s|%d access=%s offset=%d}",
+	return fmt.Sprintf("%s{%s type='%s' kind=%s access=%s offset=%d}",
 		hdr,
-		m.name, m.typ.Name(), m.kind.String(), m.kind, m.access.String(), m.offset)
+		m.name, m.typ.Name(), m.kind.String(), m.access.String(), m.offset)
 }
 
 // NewFunctionType creates a new function type.
@@ -973,7 +973,6 @@ func NewFunctionType(n string, qual TypeQualifier, specifiers TypeSpecifier, var
 		params:   make([]Parameter, 0, len(params)),
 		ret:      ret,
 	}
-	t.params = append(t.params, params...)
 
 	// only add that type to the db if it isn't a method (of a class/struct)
 	if !t.IsMethod() {

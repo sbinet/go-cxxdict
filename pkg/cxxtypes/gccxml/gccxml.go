@@ -93,6 +93,7 @@ func LoadTypes(fname string) error {
 				"LongStr_t",
 				"Ssiz_t",
 				"Func_t",
+				"std::vector<Foo>::push_back",
 			}
 			fmt.Printf("++++++++++++++++++++++++++\n")
 			for _, n := range names {
@@ -111,6 +112,7 @@ func LoadTypes(fname string) error {
 				"Alg",
 				"WithPrivateBase",
 				"LongStr_t",
+				//"std::vector<Foo>",
 			}
 			for _,n := range names {
 				t := cxxtypes.TypeByName(n)
@@ -124,23 +126,23 @@ func LoadTypes(fname string) error {
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
 						b :=  tt.Base(i)
-						fmt.Printf(" base[%d]: %v\n", i, b)
+						fmt.Printf(" %d: %v\n", i, b)
 					}
 					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
 					for i := 0; i < tt.NumMember(); i++ {
 						m :=  tt.Member(i)
-						fmt.Printf(" mbr[%d]: %v\n", i, m)
+						fmt.Printf(" %d: %v\n", i, m)
 					}
 				case *cxxtypes.StructType:
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
 						b :=  tt.Base(i)
-						fmt.Printf(" base[%d]: %v\n", i, b)
+						fmt.Printf(" %d: %v\n", i, b)
 					}
 					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
 					for i := 0; i < tt.NumMember(); i++ {
 						m :=  tt.Member(i)
-						fmt.Printf(" mbr[%d]: %v\n", i, m)
+						fmt.Printf(" %d: %v\n", i, m)
 					}
 				}
 			}
