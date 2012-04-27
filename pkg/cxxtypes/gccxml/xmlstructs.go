@@ -62,20 +62,17 @@ func (x *xmlTree) printStats() {
 	fmt.Printf("loaded [%d] ref-types\n", len(x.ReferenceTypes))
 	fmt.Printf("loaded [%d] cv-types\n", len(x.CvQualifiedTypes))
 	fmt.Printf("loaded [%d] fundamentals\n", len(x.FundamentalTypes))
-
-	if g_dbg {
-		for i, _ := range x.FundamentalTypes {
-			fmt.Printf(" => %v\n", x.FundamentalTypes[i])
-		}
-	}
-
 	fmt.Printf("loaded [%d] array-types\n", len(x.Arrays))
-	if g_dbg {
-		for _, a := range x.Arrays {
-			nn := genTypeName(a.id(), gtnCfg{})
-			fmt.Printf(" => '%s' -> '%s' %v\n", a.name(), nn, a)
-		}
-	}
+
+	// if g_dbg {
+	// 	for i, _ := range x.FundamentalTypes {
+	// 		fmt.Printf(" => %v\n", x.FundamentalTypes[i])
+	// 	}
+	// 	for _, a := range x.Arrays {
+	// 		nn := genTypeName(a.id(), gtnCfg{})
+	// 		fmt.Printf(" => '%s' -> '%s' %v\n", a.name(), nn, a)
+	// 	}
+	// }
 }
 
 // fixup fixes a few of the "features" of GCC-XML data
