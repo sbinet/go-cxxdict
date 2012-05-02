@@ -903,20 +903,20 @@ class genDictionary(object) :
     f.write(ofds['go'].getvalue()) 
     f.close()
 
-    f = open('dump.xml','w')
-    f.write('=== keys ===\n')
-    f.write(str(self.xref.keys())+'\n')
-    f.write('=== items ===\n')
-    f.write(str(self.xref)+'\n')
-    f.close()
-
-    import cxxtypesystem as cxx_rtti
-    cxx_rtti._g_xref = self.xref
-    for t in cxx_rtti.builtin_types_itr():
-      #print "---",t
-      pass
+    # f = open('dump.xml','w')
+    # f.write('=== keys ===\n')
+    # f.write(str(self.xref.keys())+'\n')
+    # f.write('=== items ===\n')
+    # f.write(str(self.xref)+'\n')
+    # f.close()
 
     if 0:
+      import cxxtypesystem as cxx_rtti
+      cxx_rtti._g_xref = self.xref
+      for t in cxx_rtti.builtin_types_itr():
+        # print "---",t
+        pass
+
       for n in ('std::string',
                 'std::wstring',
                 'std::vector<int>',

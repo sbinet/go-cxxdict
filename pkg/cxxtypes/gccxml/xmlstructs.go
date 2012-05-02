@@ -2138,7 +2138,7 @@ func genTypeName(id string, cfg gtnCfg) string {
 
 	case *xmlReferenceType:
 		//println("-+-+-&", tt.Type)
-		tn := genTypeName(tt.Type, cfg) 
+		tn := genTypeName(tt.Type, cfg)
 		// 's =' is on purpose!
 		s = tn + "&"
 		//fmt.Printf(";;; tn=[%s] -> ref=[%s]\n", tn, s)
