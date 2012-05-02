@@ -354,6 +354,12 @@ func (x *xmlTree) gencxxtypes() error {
 		g_processed_ids[v.id()] = ct.Name()
 	}
 
+	for _, v := range x.Namespaces {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
 	for _, v := range x.Arrays {
 		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
 		gen_id_from_gccxml(v)
@@ -2325,6 +2331,9 @@ func getCxxtypesScope(node i_id) *cxxtypes.Scope {
 		if scopenames[0] == "::" {
 			scopenames = scopenames[1:]
 		}
+		if len(scopenames) == 0 {
+			return scope
+		}
 		scopenames = scopenames[:len(scopenames)-1]
 		for i, _ := range scopenames {
 			if dbg {
@@ -2469,7 +2478,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := gen_args(t.Arguments)
 		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2493,7 +2501,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := []cxxtypes.Parameter{}
 		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2549,7 +2556,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		ret_type := cxxtypes.TypeByName("void") //FIXME ?
 		scope := getCxxtypesScope(t)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2596,7 +2602,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := gen_args(t.Arguments)
 		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2655,7 +2660,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := gen_args(t.Arguments)
 		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2664,6 +2668,11 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			ret_type,
 			scope,
 		)
+
+	case *xmlNamespace:
+		scoped_name := genTypeName(t.id(), gtnCfg{})
+		scope := getCxxtypesScope(t)
+		ct = cxxtypes.NewNamespace(scoped_name, scope)
 
 	case *xmlOperatorMethod:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
@@ -2688,7 +2697,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := gen_args(t.Arguments)
 		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //fixme
 			scoped_name,
 			qual,
 			spec,
@@ -2715,7 +2723,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		params := gen_args(t.Arguments)
 		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
 		ct = cxxtypes.NewFunction(
-			scoped_name, //FIXME: handle overload-set
 			scoped_name,
 			qual,
 			spec,

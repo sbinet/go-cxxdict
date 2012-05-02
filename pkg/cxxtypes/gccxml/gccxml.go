@@ -97,11 +97,11 @@ func LoadTypes(fname string) error {
 			}
 			fmt.Printf("++++++++++++++++++++++++++\n")
 			for _, n := range names {
-				t := cxxtypes.TypeByName(n)
-				if t == nil {
-					fmt.Printf("::could not find type [%s]\n", n)
+				id := cxxtypes.IdByName(n)
+				if id == nil {
+					fmt.Printf("::could not find identifier [%s]\n", n)
 				} else {
-					fmt.Printf("[%s]: %v\n", n, t)
+					fmt.Printf("[%s]: %v\n", n, id)
 				}
 			}
 			fmt.Printf("++++++++++++++++++++++++++\n")
@@ -113,15 +113,23 @@ func LoadTypes(fname string) error {
 				"WithPrivateBase",
 				"LongStr_t",
 				//"std::vector<Foo>",
+				"std",
+				"std::abs",
+				"Math::do_hello",
+				"Math2::do_hello",
+				"Foo::setDouble",
+				"Foo::getme",
 			}
 			for _,n := range names {
-				t := cxxtypes.TypeByName(n)
+				t := cxxtypes.IdByName(n)
 				if t == nil {
-					fmt.Printf("could not inspect type [%s]\n", n)
+					fmt.Printf("could not inspect identifier [%s]\n", n)
 					continue
 				}
 				fmt.Printf(":: inspecting [%s]...\n", n)
 				switch tt := t.(type) {
+				case *cxxtypes.Namespace:
+					fmt.Printf(" -> %s\n", tt.IdScopedName())
 				case *cxxtypes.ClassType:
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
@@ -144,11 +152,20 @@ func LoadTypes(fname string) error {
 						m :=  tt.Member(i)
 						fmt.Printf(" %d: %v\n", i, m)
 					}
+				case *cxxtypes.OverloadFunctionSet:
+					for i := 0; i < tt.NumFunction(); i++ {
+						fmt.Printf("%s: %s\n", 
+							tt.IdName(), tt.Function(i).Signature())
+					}
+				default:
+					fmt.Printf("%v\n", tt)
 				}
 			}
 		}
 		names := cxxtypes.TypeNames()
 		fmt.Printf("== distilled [%d] types.\n", len(names))
+		ids := cxxtypes.IdNames()
+		fmt.Printf("== distilled [%d] identifiers.\n", len(ids))
 		// for _,n := range names {
 		// 	t := cxxtypes.TypeByName(n)
 		// 	fmt.Printf("[%s]: %v\n", n, t)

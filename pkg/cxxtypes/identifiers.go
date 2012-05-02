@@ -1,5 +1,9 @@
 package cxxtypes
 
+import (
+	"strings"
+)
+
 // Id is a C/C++ identifier
 type Id interface {
 	// IdName returns the name of this identifier
@@ -68,18 +72,18 @@ func NumId() int {
 
 // idBase implements the Id interface
 type idBase struct {
-	name        string
-	scoped_name string
-	kind        IdKind
+	name  string
+	kind  IdKind
 	scope *Scope
 }
 
 func (id *idBase) IdName() string {
-	return id.name
+	n := strings.Split(id.name, "::")
+	return n[len(n)-1]
 }
 
 func (id *idBase) IdScopedName() string {
-	return id.scoped_name
+	return id.name
 }
 
 func (id *idBase) IdKind() IdKind {
@@ -90,11 +94,29 @@ func (id *idBase) DeclScope() *Scope {
 	return id.scope
 }
 
+// Namespace represents a namespace identifier
+type Namespace struct {
+	idBase `cxxtypes:"namespace"`
+}
+
+// NewNamespace creates a new namespace identifier
+func NewNamespace(name string, scope *Scope) *Namespace {
+	id := &Namespace{
+		idBase: idBase{
+			name:  name,
+			kind:  IK_Nsp,
+			scope: scope,
+		},
+	}
+	add_id(id)
+	return id
+}
+
 // Function represents a function identifier
 //  e.g. std::fabs
 type Function struct {
 	idBase   `cxxtypes:"function"`
-	qual TypeQualifier
+	qual     TypeQualifier
 	tspec    TypeSpecifier // or'ed value of virtual/inline/...
 	variadic bool          // whether this function is variadic
 	params   []Parameter   // the parameters to this function
@@ -102,20 +124,21 @@ type Function struct {
 }
 
 // NewFunction returns a new function identifier
-func NewFunction(name, scoped_name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret Type, scope *Scope) *Function {
+func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret Type, scope *Scope) *Function {
 	id := &Function{
 		idBase: idBase{
-			name:        name,
-			scoped_name: scoped_name,
-			kind:        IK_Fct,
+			name:  name,
+			kind:  IK_Fct,
 			scope: scope,
 		},
-		qual: qual,
+		qual:     qual,
 		tspec:    specifiers,
 		variadic: variadic,
 		params:   make([]Parameter, 0, len(params)),
 		ret:      ret,
 	}
+	id.params = append(id.params, params...)
+	//copy(id.params, params)
 	add_id(id)
 	return id
 }
@@ -125,7 +148,7 @@ func (t *Function) to_commonType() *commonType {
 }
 
 func (t *Function) Name() string {
-	return t.scoped_name
+	return t.name
 }
 
 func (t *Function) Size() uintptr {
@@ -143,6 +166,10 @@ func (t *Function) Qualifiers() TypeQualifier {
 // Specifier returns the type specifier for this function
 func (t *Function) Specifier() TypeSpecifier {
 	return t.tspec
+}
+
+func (t *Function) IsConst() bool {
+	return (t.qual & TQ_Const) != 0
 }
 
 func (t *Function) IsVirtual() bool {
@@ -218,6 +245,48 @@ func (t *Function) ReturnType() Type {
 	return t.ret
 }
 
+// Signature returns the (C++11) signature of this function
+func (t *Function) Signature() string {
+	s := []string{}
+	if t.IsInline() {
+		s = append(s, "inline ")
+	}
+	if t.IsStatic() {
+		s = append(s, "static ")
+	}
+	s = append(s, t.IdScopedName(), "(")
+	if len(t.params) > 0 {
+		for i, _ := range t.params {
+			s = append(s,
+				strings.TrimSpace(t.Param(i).Type().Name()),
+				" ",
+				strings.TrimSpace(t.Param(i).Name()))
+			if i < len(t.params)-1 {
+				s = append(s, ", ")
+			}
+		}
+	} else {
+		// fixme: we should rather test if C XOR C++...
+		if t.IsMethod() {
+			//nothing
+		} else {
+			s = append(s, "void")
+		}
+	}
+	if t.IsVariadic() {
+		s = append(s, "...")
+	}
+	s = append(s, ") ")
+	if t.IsConst() {
+		s = append(s, "const ")
+	}
+	//fixme: add fct qualifiers: const|static|inline
+	if !t.IsConstructor() && !t.IsDestructor() {
+		s = append(s, "-> ", t.ReturnType().Name())
+	}
+	return strings.TrimSpace(strings.Join(s, ""))
+}
+
 // OverloadFunctionSet is a set of functions which are part of the same overload
 type OverloadFunctionSet struct {
 	idBase `cxxtypes:"overloadfctset"`
@@ -250,16 +319,16 @@ func add_id(id Id) Id {
 		if _, exists := g_ids[n]; !exists {
 			g_ids[n] = &OverloadFunctionSet{
 				idBase: idBase{
-					name:        id.IdName(),
-					scoped_name: id.IdScopedName(),
-					kind:        id.IdKind(),
+					name:  id.IdScopedName(),
+					kind:  id.IdKind(),
+					scope: id.DeclScope(),
 				},
-				fcts: make([]*Function, 1),
+				fcts: make([]*Function, 0, 1),
 			}
 		}
 		o := g_ids[n].(*OverloadFunctionSet)
 		o.fcts = append(o.fcts, id)
-		println(":: added ["+n+"] to overload-fct-set...")
+		//println(":: added [" + id.Signature() + "] to overload-fct-set...")
 	default:
 		if _, exists := g_ids[n]; exists {
 			panic("cxxtypes: identifier [" + n + "] already in id-registry")
