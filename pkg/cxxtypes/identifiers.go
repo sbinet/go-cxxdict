@@ -21,6 +21,9 @@ type Id interface {
 	// IdKind returns the kind of this identifier
 	//  IK_Var | IK_Typ | IK_Fct | IK_Nsp
 	IdKind() IdKind
+
+	// DeclScope returns the declaring scope of this identifier
+	DeclScope() *Scope
 }
 
 // IdKind represents the specific kind of identifier an Id represents.
@@ -68,6 +71,7 @@ type idBase struct {
 	name        string
 	scoped_name string
 	kind        IdKind
+	scope *Scope
 }
 
 func (id *idBase) IdName() string {
@@ -82,30 +86,58 @@ func (id *idBase) IdKind() IdKind {
 	return id.kind
 }
 
+func (id *idBase) DeclScope() *Scope {
+	return id.scope
+}
+
 // Function represents a function identifier
 //  e.g. std::fabs
 type Function struct {
-	idBase `cxxtypes:"function"`
-	tspec      TypeSpecifier // or'ed value of virtual/inline/...
-	variadic   bool          // whether this function is variadic
-	params     []Parameter   // the parameters to this function
-	ret        Type          // return type of this function
+	idBase   `cxxtypes:"function"`
+	qual TypeQualifier
+	tspec    TypeSpecifier // or'ed value of virtual/inline/...
+	variadic bool          // whether this function is variadic
+	params   []Parameter   // the parameters to this function
+	ret      Type          // return type of this function
 }
 
 // NewFunction returns a new function identifier
-func NewFunction(name, scoped_name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret Type) *Function {
+func NewFunction(name, scoped_name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret Type, scope *Scope) *Function {
 	id := &Function{
 		idBase: idBase{
-			name: name,
+			name:        name,
 			scoped_name: scoped_name,
-			kind: IK_Fct,
+			kind:        IK_Fct,
+			scope: scope,
 		},
+		qual: qual,
 		tspec:    specifiers,
 		variadic: variadic,
 		params:   make([]Parameter, 0, len(params)),
 		ret:      ret,
 	}
+	add_id(id)
 	return id
+}
+
+func (t *Function) to_commonType() *commonType {
+	return nil //fixme
+}
+
+func (t *Function) Name() string {
+	return t.scoped_name
+}
+
+func (t *Function) Size() uintptr {
+	return 0
+}
+
+func (t *Function) Kind() TypeKind {
+	return TK_FunctionProto //fixme ?
+}
+
+func (t *Function) Qualifiers() TypeQualifier {
+	return t.qual
 }
 
 // Specifier returns the type specifier for this function
@@ -189,7 +221,7 @@ func (t *Function) ReturnType() Type {
 // OverloadFunctionSet is a set of functions which are part of the same overload
 type OverloadFunctionSet struct {
 	idBase `cxxtypes:"overloadfctset"`
-	fcts []*Function
+	fcts   []*Function
 }
 
 // NumFunction returns the number of overloads in that set
@@ -207,9 +239,44 @@ func (id *OverloadFunctionSet) Function(i int) *Function {
 }
 
 // ----------------------------------------------------------------------------
+// id-related utils
+
+// add_id adds a given identifier to the repository of identifiers.
+// 
+func add_id(id Id) Id {
+	n := id.IdScopedName()
+	switch id := id.(type) {
+	case *Function:
+		if _, exists := g_ids[n]; !exists {
+			g_ids[n] = &OverloadFunctionSet{
+				idBase: idBase{
+					name:        id.IdName(),
+					scoped_name: id.IdScopedName(),
+					kind:        id.IdKind(),
+				},
+				fcts: make([]*Function, 1),
+			}
+		}
+		o := g_ids[n].(*OverloadFunctionSet)
+		o.fcts = append(o.fcts, id)
+		println(":: added ["+n+"] to overload-fct-set...")
+	default:
+		if _, exists := g_ids[n]; exists {
+			panic("cxxtypes: identifier [" + n + "] already in id-registry")
+		}
+		g_ids[n] = id
+	}
+	return g_ids[n]
+}
+
+// ----------------------------------------------------------------------------
 // make sure the interfaces are implemented
 
 var _ Id = (*Function)(nil)
 var _ Id = (*OverloadFunctionSet)(nil)
+
+func init() {
+	g_ids = make(map[string]Id)
+}
 
 // EOF

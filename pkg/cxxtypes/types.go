@@ -285,6 +285,19 @@ type commonType struct {
 	//canon Type          // the canonical type of this type
 }
 
+func (t *commonType) IdName() string {
+	return t.name
+}
+
+//fixme
+func (t *commonType) IdScopedName() string {
+	return t.name
+}
+
+func (t *commonType) IdKind() IdKind {
+	return IK_Typ
+}
+
 func (t *commonType) Name() string {
 	return t.name
 }
@@ -329,6 +342,20 @@ func (t *placeHolderType) sync() bool {
 	}
 	return t.typ != nil
 }
+
+func (t *placeHolderType) IdName() string {
+	return t.name
+}
+
+//fixme
+func (t *placeHolderType) IdScopedName() string {
+	return t.name
+}
+
+func (t *placeHolderType) IdKind() IdKind {
+	return IK_Typ
+}
+
 func (t *placeHolderType) Name() string {
 	if t.sync() {
 		return t.typ.Name()
@@ -417,6 +444,19 @@ type CvrQualType struct {
 	qual  TypeQualifier
 	typ   Type // the decorated type
 	scope *Scope
+}
+
+func (t *CvrQualType) IdName() string {
+	return t.name
+}
+
+//fixme
+func (t *CvrQualType) IdScopedName() string {
+	return t.name
+}
+
+func (t *CvrQualType) IdKind() IdKind {
+	return IK_Typ
 }
 
 func (t *CvrQualType) Name() string {
@@ -1195,6 +1235,9 @@ func add_type(t Type) {
 		panic("cxxtypes: type [" + t.Name() + "] already in registry")
 	}
 	g_types[t.Name()] = t
+
+	id := t.(Id)
+	add_id(id)
 	return
 
 }
@@ -1216,6 +1259,7 @@ func gen_new_name(n string, qual TypeQualifier) string {
 // ----------------------------------------------------------------------------
 // make sure the interfaces are implemented
 
+var _ Type = (*placeHolderType)(nil)
 var _ Type = (*CvrQualType)(nil)
 var _ Type = (*PtrType)(nil)
 var _ Type = (*RefType)(nil)
@@ -1226,6 +1270,18 @@ var _ Type = (*EnumType)(nil)
 var _ Type = (*UnionType)(nil)
 var _ Type = (*ClassType)(nil)
 var _ Type = (*FunctionType)(nil)
+
+var _ Id = (*placeHolderType)(nil)
+var _ Id = (*CvrQualType)(nil)
+var _ Id = (*PtrType)(nil)
+var _ Id = (*RefType)(nil)
+var _ Id = (*TypedefType)(nil)
+var _ Id = (*ArrayType)(nil)
+var _ Id = (*StructType)(nil)
+var _ Id = (*EnumType)(nil)
+var _ Id = (*UnionType)(nil)
+var _ Id = (*ClassType)(nil)
+var _ Id = (*FunctionType)(nil)
 
 func init() {
 	g_types = make(map[string]Type)
