@@ -4,6 +4,7 @@ package gccxml
 import (
 	"encoding/xml"
 	"fmt"
+	"io"
 	"io/ioutil"
 
 	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
@@ -36,9 +37,14 @@ type gidname struct {
 // a cache of id->name filled by genTypeName
 var g_ids_name map[gidname]string = make(map[gidname]string)
 
-// LoadTypes reads an XML file produced by GCC_XML and fills the cxxtypes' registry accordingly.
-func LoadTypes(fname string) error {
-	data, err := ioutil.ReadFile(fname)
+type gccxmlDistiller struct {
+}
+
+// LoadIdentifiers reads an XML file produced by GCC_XML and 
+// fills the cxxtypes' registry accordingly.
+func (d *gccxmlDistiller) LoadIdentifiers(r io.Reader) error {
+	
+	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
 	}
@@ -79,6 +85,7 @@ func LoadTypes(fname string) error {
 	return err
 }
 
+
 func init() {
 	g_n2tk = map[string]cxxtypes.TypeKind{
 		"void":           cxxtypes.TK_Void,
@@ -105,6 +112,8 @@ func init() {
 		"double complex":      cxxtypes.TK_Complex,
 		"long double complex": cxxtypes.TK_Complex,
 	}
+
+	cxxtypes.RegisterDistiller("gccxml", &gccxmlDistiller{})
 }
 
 // EOF

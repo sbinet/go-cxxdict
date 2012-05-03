@@ -2129,6 +2129,7 @@ func genTypeName(id string, cfg gtnCfg) string {
 			tn = strings.Replace(tn, "::*)", "::**)", -1)
 			tn = strings.Replace(tn, "::)", "::*)", -1)
 			tn = strings.Replace(tn, "(*)", "(**)", -1)
+			tn = strings.Replace(tn, "()", "(*)", 1)
 			// 's =' is on purpose!
 			s = tn
 		} else {
@@ -2413,7 +2414,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		}
 
 		// fixme: that's not always true... (could be unsigned int...)
-		typ := cxxtypes.TypeByName("int")
+		typ := cxxtypes.IdByName("int").(cxxtypes.Type)
 		for _, mbr := range mbrs {
 			members = append(members,
 				cxxtypes.NewMember(
@@ -2456,7 +2457,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	switch t := node.(type) {
 
 	case *xmlFundamentalType:
-		ct = cxxtypes.TypeByName(t.name()).(cxxtypes.Id)
+		ct = cxxtypes.IdByName(t.name())
 
 	case *xmlArray:
 		sz := str_to_uintptr(t.Size)
@@ -2476,7 +2477,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 
 		scope := getCxxtypesScope(t)
 		params := gen_args(t.Arguments)
-		ret_type := cxxtypes.TypeByName("void") //FIXME ?
+		ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
 		ct = cxxtypes.NewFunction(
 			scoped_name,
 			qual,
@@ -2530,14 +2531,15 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	case *xmlPointerType:
 		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
 		scope := getCxxtypesScope(t)
-		//scoped_name := genTypeName(t.id(), gtnCfg{})
+		scoped_name := genTypeName(t.id(), gtnCfg{})
 		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
-		ct = cxxtypes.NewPtrType(typ, scope)
+		ct = cxxtypes.NewPtrType(scoped_name, typ, scope)
 
 	case *xmlReferenceType:
 		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
 		scope := getCxxtypesScope(t)
-		ct = cxxtypes.NewRefType(typ, scope)
+		scoped_name := genTypeName(t.id(), gtnCfg{})
+		ct = cxxtypes.NewRefType(scoped_name, typ, scope)
 
 	case *xmlDestructor:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
@@ -2553,7 +2555,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		variadic := strings.Contains(scoped_name, "...")
 
 		params := []cxxtypes.Parameter{}
-		ret_type := cxxtypes.TypeByName("void") //FIXME ?
+		ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
 		scope := getCxxtypesScope(t)
 		ct = cxxtypes.NewFunction(
 			scoped_name,

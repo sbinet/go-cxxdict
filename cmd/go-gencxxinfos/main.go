@@ -3,18 +3,27 @@
 package main
 
 import (
+	//"flag"
 	"fmt"
 	"os"
 
 	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes/gccxml"
+	_ "bitbucket.org/binet/go-cxxdict/pkg/cxxtypes/gccxml"
 )
 
 const dbg = 1
 
+//var fname *string = flag.String("fname", "", )
+
 func main() {
 	fmt.Printf("== go-gencxxinfos ==\n")
-	err := gccxml.LoadTypes("t.xml")
+	f, err := os.Open("t.xml")
+	if err != nil {
+		fmt.Printf("**err** %v\n", err)
+		os.Exit(1)
+	}
+
+	err = cxxtypes.DistillIdentifiers("gccxml", f)
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)
@@ -110,8 +119,6 @@ func main() {
 				}
 			}
 		}
-		names := cxxtypes.TypeNames()
-		fmt.Printf("== distilled [%d] types.\n", len(names))
 		ids := cxxtypes.IdNames()
 		fmt.Printf("== distilled [%d] identifiers.\n", len(ids))
 		// for _,n := range names {
@@ -119,6 +126,26 @@ func main() {
 		// 	fmt.Printf("[%s]: %v\n", n, t)
 		// }
 
+	}
+
+	dst, err := os.Create("ids.db")
+	if err != nil {
+		fmt.Printf("**err** %v\n", err)
+		os.Exit(1)
+	}
+	defer dst.Close()
+
+	if false {
+		err = cxxtypes.SaveIdentifiers(dst)
+		if err != nil {
+			fmt.Printf("**err** %v\n", err)
+			os.Exit(1)
+		}
+	}
+	err = dst.Sync()
+	if err != nil {
+		fmt.Printf("**err** %v\n", err)
+		os.Exit(1)
 	}
 }
 

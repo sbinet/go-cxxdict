@@ -217,39 +217,10 @@ type Type interface {
 	// CanonicalType returns the underlying type with all
 	// the "sugar" removed.
 	//CanonicalType() Type
-
-	to_commonType() *commonType
 }
-
-// the db of all types
-var g_types map[string]Type
 
 // size of a pointer for this platform
 var g_ptrsz uintptr
-
-// TypeByName retrieves a type by its fully qualified name.
-// Returns nil if no such type exists.
-func TypeByName(n string) Type {
-	t, ok := g_types[n]
-	if ok {
-		return t
-	}
-	return nil
-}
-
-// TypeNames returns the list of type names currently defined.
-func TypeNames() []string {
-	names := make([]string, 0, len(g_types))
-	for k, _ := range g_types {
-		names = append(names, k)
-	}
-	return names
-}
-
-// NumType returns the number of currently defined types
-func NumType() int {
-	return len(g_types)
-}
 
 // IsConstQualified returns whether this type is const-qualified.
 // This doesn't look through typedefs that may have added 'const' at 
@@ -323,10 +294,6 @@ func (t *commonType) String() string {
 		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
 }
 
-func (t *commonType) to_commonType() *commonType {
-	return t
-}
-
 type placeHolderType struct {
 	name string
 	typ  Type
@@ -338,7 +305,11 @@ func NewPlaceHolder(name string) Type {
 
 func (t *placeHolderType) sync() bool {
 	if t.typ == nil {
-		t.typ = TypeByName(t.name)
+		typ, ok := IdByName(t.name).(Type)
+		if !ok {
+			panic("could not sync [" + t.name + "]")
+		}
+		t.typ = typ
 	}
 	return t.typ != nil
 }
@@ -395,11 +366,6 @@ func (t *placeHolderType) String() string {
 	t.sync()
 	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
 		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
-}
-
-func (t *placeHolderType) to_commonType() *commonType {
-	t.sync()
-	return t.typ.to_commonType()
 }
 
 // func (t *commonType) CanonicalType() Type {
@@ -484,20 +450,11 @@ func (t *CvrQualType) String() string {
 		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
 }
 
-func (t *CvrQualType) to_commonType() *commonType {
-	return t.typ.to_commonType()
-}
-
 // NewPtrType creates a new pointer type from an already existing type t.
-func NewPtrType(t Type, scope *Scope) *PtrType {
+func NewPtrType(name string, t Type, scope *Scope) *PtrType {
 	p := &PtrType{
-		commonType: commonType{
-			size:  g_ptrsz,
-			kind:  TK_Ptr,
-			qual:  t.Qualifiers(),
-			scope: scope,
-			name:  t.Name() + "*",
-		},
+		name: name,
+		scope: scope,
 		typ: t,
 	}
 	add_type(p)
@@ -506,8 +463,47 @@ func NewPtrType(t Type, scope *Scope) *PtrType {
 
 // PtrType represents a typed ptr
 type PtrType struct {
-	commonType `cxxtypes:"ptr"`
-	typ        Type // the pointee type, possibly cvr-qualified
+	name  string        // the fully qualified name of the type
+	scope *Scope // declaring scope of this type
+	typ   Type   // the pointee type, possibly cvr-qualified
+}
+
+func (t *PtrType) IdName() string {
+	return t.Name()
+}
+
+//fixme
+func (t *PtrType) IdScopedName() string {
+	return t.Name()
+}
+
+func (t *PtrType) IdKind() IdKind {
+	return IK_Typ
+}
+
+func (t *PtrType) Name() string {
+	return t.name
+}
+
+func (t *PtrType) Size() uintptr {
+	return g_ptrsz
+}
+
+func (t *PtrType) Kind() TypeKind {
+	return TK_Ptr
+}
+
+func (t *PtrType) Qualifiers() TypeQualifier {
+	return t.typ.Qualifiers()
+}
+
+func (t *PtrType) DeclScope() *Scope {
+	return t.scope
+}
+
+func (t *PtrType) String() string {
+	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
+		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
 }
 
 // UnderlyingType returns the type of the pointee
@@ -516,16 +512,11 @@ func (t *PtrType) UnderlyingType() Type {
 }
 
 // NewRefType creates a new reference type from an already existing type t.
-func NewRefType(t Type, scope *Scope) *RefType {
+func NewRefType(name string, t Type, scope *Scope) *RefType {
 	r := &RefType{
-		commonType: commonType{
-			size:  g_ptrsz,
-			kind:  TK_LValueRef,
-			qual:  t.Qualifiers(),
-			scope: scope,
-			name:  t.Name() + "&",
-		},
-		typ: t,
+		name: name,
+		scope: scope,
+		typ:   t,
 	}
 	add_type(r)
 	return r
@@ -533,8 +524,47 @@ func NewRefType(t Type, scope *Scope) *RefType {
 
 // RefType represents a typed reference
 type RefType struct {
-	commonType `cxxtypes:"ref"`
-	typ        Type // the referenced type, possibly cvr-qualified
+	name  string        // the fully qualified name of the type
+	scope *Scope // declaring scope of this type
+	typ   Type   // the referenced type, possibly cvr-qualified
+}
+
+func (t *RefType) IdName() string {
+	return t.Name()
+}
+
+//fixme
+func (t *RefType) IdScopedName() string {
+	return t.Name()
+}
+
+func (t *RefType) IdKind() IdKind {
+	return IK_Typ
+}
+
+func (t *RefType) Name() string {
+	return t.name
+}
+
+func (t *RefType) Size() uintptr {
+	return g_ptrsz
+}
+
+func (t *RefType) Kind() TypeKind {
+	return TK_LValueRef
+}
+
+func (t *RefType) Qualifiers() TypeQualifier {
+	return t.typ.Qualifiers()
+}
+
+func (t *RefType) DeclScope() *Scope {
+	return t.scope
+}
+
+func (t *RefType) String() string {
+	return fmt.Sprintf(`{"%s" sz=%d kind=%v qual=%v}`,
+		t.Name(), t.Size(), t.Kind(), t.Qualifiers())
 }
 
 // UnderlyingType returns the referenced type
@@ -774,12 +804,6 @@ func NewClassType(n string, sz uintptr, scope *Scope) *ClassType {
 		bases:   make([]Base, 0),
 		members: make([]Member, 0),
 	}
-	// t.bases = append(t.bases, bases...)
-	// t.members = append(t.members, members...)
-	// err := set_scope(t.members, t, scope)
-	// if err != nil {
-	// 	panic(err)
-	// }
 	add_type(t)
 	return t
 }
@@ -1230,12 +1254,6 @@ func set_scope(members []Member, t Type, outer *Scope) error {
 
 // add_type adds a type into the db of types
 func add_type(t Type) {
-	_, exists := g_types[t.Name()]
-	if exists {
-		panic("cxxtypes: type [" + t.Name() + "] already in registry")
-	}
-	g_types[t.Name()] = t
-
 	id := t.(Id)
 	add_id(id)
 	return
@@ -1284,9 +1302,7 @@ var _ Id = (*ClassType)(nil)
 var _ Id = (*FunctionType)(nil)
 
 func init() {
-	g_types = make(map[string]Type)
 	g_ptrsz = unsafe.Sizeof(uintptr(0))
-
 }
 
 // EOF

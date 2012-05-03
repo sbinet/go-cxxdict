@@ -1,6 +1,7 @@
 package cxxtypes
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -43,6 +44,21 @@ const (
 	IK_Nsp // a namespace
 )
 
+func (id IdKind) String() string {
+	switch id {
+	case IK_Invalid:
+		return "<invalid>"
+	case IK_Var:
+		return "IK_Var"
+	case IK_Typ:
+		return "IK_Typ"
+	case IK_Fct:
+		return "IK_Fct"
+	case IK_Nsp:
+		return "IK_Nsp"
+	}
+	panic("unreachable")
+}
 // the db of all identifiers
 var g_ids map[string]Id
 
@@ -331,10 +347,12 @@ func add_id(id Id) Id {
 		//println(":: added [" + id.Signature() + "] to overload-fct-set...")
 	default:
 		if _, exists := g_ids[n]; exists {
-			panic("cxxtypes: identifier [" + n + "] already in id-registry")
+			err := fmt.Errorf("cxxtypes: identifier [%s] already in id-registry (type=%T)", n, g_ids[n])
+			panic(err)
 		}
 		g_ids[n] = id
 	}
+	//println(":: added [" + n + "]")
 	return g_ids[n]
 }
 

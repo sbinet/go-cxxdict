@@ -1,0 +1,62 @@
+package cxxtypes
+
+import (
+	"encoding/gob"
+	"encoding/json"
+	"encoding/xml"
+	"fmt"
+	"io"
+)
+
+// Distiller is the interface to distill types and identifiers
+type Distiller interface {
+	LoadIdentifiers(r io.Reader) error
+}
+
+var g_distillers = make(map[string]Distiller)
+
+// Register makes a distiller available by the provided name.
+func RegisterDistiller(name string, distiller Distiller) {
+	if distiller == nil {
+		panic("cxxtypes: Register distiller is nil")
+	}
+	if _, dup := g_distillers[name]; dup {
+		panic("cxxtypes: Register called twice for distiller " + name)
+	}
+	g_distillers[name] = distiller
+}
+
+// DistillIdentifiers distills identifiers using the specified distiller
+func DistillIdentifiers(distillerName string, r io.Reader) error {
+	distiller, ok := g_distillers[distillerName]
+	if !ok {
+		return fmt.Errorf("cxxtypes: unknown distiller %q (forgotten import?)", distillerName)
+	}
+	return distiller.LoadIdentifiers(r)
+}
+
+// SaveIdentifiers dumps all cxxtypes.Id into the specified io.Writer
+func SaveIdentifiers(dst io.Writer) error {
+	if false {
+		enc := json.NewEncoder(dst)
+		if enc == nil {
+			return fmt.Errorf("cxxtypes: could not create encoder")
+		}
+		return enc.Encode(g_ids)
+	} else if false {
+		enc := gob.NewEncoder(dst)
+		if enc == nil {
+			return fmt.Errorf("cxxtypes: could not create encoder")
+		}
+		return enc.Encode(g_ids)
+	} else if true {
+		enc := xml.NewEncoder(dst)
+		if enc == nil {
+			return fmt.Errorf("cxxtypes: could not create encoder")
+		}
+		return enc.Encode(g_ids)
+	}
+	panic("unreachable")
+}
+
+// EOF
