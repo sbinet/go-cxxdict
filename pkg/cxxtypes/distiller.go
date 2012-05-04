@@ -43,7 +43,7 @@ func SaveIdentifiers(dst io.Writer) error {
 			return fmt.Errorf("cxxtypes: could not create encoder")
 		}
 		return enc.Encode(g_ids)
-	} else if false {
+	} else if true {
 		enc := gob.NewEncoder(dst)
 		if enc == nil {
 			return fmt.Errorf("cxxtypes: could not create encoder")
@@ -59,4 +59,9 @@ func SaveIdentifiers(dst io.Writer) error {
 	panic("unreachable")
 }
 
+func init() {
+	// register types with gob
+	gob.Register(OverloadFunctionSet{})
+	gob.Register(RefType{})
+}
 // EOF

@@ -296,7 +296,7 @@ func (t *commonType) String() string {
 
 type placeHolderType struct {
 	name string
-	typ  Type
+	typ  Type  
 }
 
 func NewPlaceHolder(name string) Type {
@@ -453,9 +453,9 @@ func (t *CvrQualType) String() string {
 // NewPtrType creates a new pointer type from an already existing type t.
 func NewPtrType(name string, t Type, scope *Scope) *PtrType {
 	p := &PtrType{
-		name: name,
+		name:  name,
 		scope: scope,
-		typ: t,
+		typ:   t,
 	}
 	add_type(p)
 	return p
@@ -463,7 +463,7 @@ func NewPtrType(name string, t Type, scope *Scope) *PtrType {
 
 // PtrType represents a typed ptr
 type PtrType struct {
-	name  string        // the fully qualified name of the type
+	name  string // the fully qualified name of the type
 	scope *Scope // declaring scope of this type
 	typ   Type   // the pointee type, possibly cvr-qualified
 }
@@ -514,7 +514,7 @@ func (t *PtrType) UnderlyingType() Type {
 // NewRefType creates a new reference type from an already existing type t.
 func NewRefType(name string, t Type, scope *Scope) *RefType {
 	r := &RefType{
-		name: name,
+		name:  name,
 		scope: scope,
 		typ:   t,
 	}
@@ -524,7 +524,7 @@ func NewRefType(name string, t Type, scope *Scope) *RefType {
 
 // RefType represents a typed reference
 type RefType struct {
-	name  string        // the fully qualified name of the type
+	name  string // the fully qualified name of the type
 	scope *Scope // declaring scope of this type
 	typ   Type   // the referenced type, possibly cvr-qualified
 }

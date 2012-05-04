@@ -59,6 +59,7 @@ func (id IdKind) String() string {
 	}
 	panic("unreachable")
 }
+
 // the db of all identifiers
 var g_ids map[string]Id
 

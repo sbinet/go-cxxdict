@@ -135,7 +135,7 @@ func main() {
 	}
 	defer dst.Close()
 
-	if false {
+	if true {
 		err = cxxtypes.SaveIdentifiers(dst)
 		if err != nil {
 			fmt.Printf("**err** %v\n", err)
