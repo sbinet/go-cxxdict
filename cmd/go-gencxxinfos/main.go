@@ -29,7 +29,6 @@ func main() {
 		os.Exit(1)
 	}
 
-
 	if dbg == 1 {
 		{
 			names := []string{
@@ -77,7 +76,7 @@ func main() {
 				"std::vector<Foo>::size",
 				//"std::locale",
 			}
-			for _,n := range names {
+			for _, n := range names {
 				t := cxxtypes.IdByName(n)
 				if t == nil {
 					fmt.Printf("could not inspect identifier [%s]\n", n)
@@ -90,28 +89,28 @@ func main() {
 				case *cxxtypes.ClassType:
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
-						b :=  tt.Base(i)
+						b := tt.Base(i)
 						fmt.Printf(" %d: %v\n", i, b)
 					}
 					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
 					for i := 0; i < tt.NumMember(); i++ {
-						m :=  tt.Member(i)
+						m := tt.Member(i)
 						fmt.Printf(" %d: %v\n", i, m)
 					}
 				case *cxxtypes.StructType:
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
-						b :=  tt.Base(i)
+						b := tt.Base(i)
 						fmt.Printf(" %d: %v\n", i, b)
 					}
 					fmt.Printf(" #mbrs: %d\n", tt.NumMember())
 					for i := 0; i < tt.NumMember(); i++ {
-						m :=  tt.Member(i)
+						m := tt.Member(i)
 						fmt.Printf(" %d: %v\n", i, m)
 					}
 				case *cxxtypes.OverloadFunctionSet:
 					for i := 0; i < tt.NumFunction(); i++ {
-						fmt.Printf("%s: %s\n", 
+						fmt.Printf("%s: %s\n",
 							tt.IdName(), tt.Function(i).Signature())
 					}
 				default:

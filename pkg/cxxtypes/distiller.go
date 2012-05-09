@@ -64,4 +64,5 @@ func init() {
 	gob.Register(OverloadFunctionSet{})
 	gob.Register(RefType{})
 }
+
 // EOF

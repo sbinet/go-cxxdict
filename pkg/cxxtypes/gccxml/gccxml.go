@@ -43,7 +43,7 @@ type gccxmlDistiller struct {
 // LoadIdentifiers reads an XML file produced by GCC_XML and 
 // fills the cxxtypes' registry accordingly.
 func (d *gccxmlDistiller) LoadIdentifiers(r io.Reader) error {
-	
+
 	data, err := ioutil.ReadAll(r)
 	if err != nil {
 		return err
@@ -84,7 +84,6 @@ func (d *gccxmlDistiller) LoadIdentifiers(r io.Reader) error {
 
 	return err
 }
-
 
 func init() {
 	g_n2tk = map[string]cxxtypes.TypeKind{

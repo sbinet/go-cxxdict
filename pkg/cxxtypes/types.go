@@ -296,7 +296,7 @@ func (t *commonType) String() string {
 
 type placeHolderType struct {
 	name string
-	typ  Type  
+	typ  Type
 }
 
 func NewPlaceHolder(name string) Type {
