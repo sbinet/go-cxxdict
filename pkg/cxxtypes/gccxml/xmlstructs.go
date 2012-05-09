@@ -337,7 +337,6 @@ func (x *xmlTree) gencxxtypes() error {
 
 	// first, generate builtins.
 	for _, v := range x.FundamentalTypes {
-		scope := cxxtypes.Universe
 		if v.name() == "" {
 			panic("empty builtin type name !")
 		}
@@ -349,9 +348,9 @@ func (x *xmlTree) gencxxtypes() error {
 			v.name(),
 			str_to_uintptr(v.Size),
 			tk,
-			scope,
+			"::", //scope,
 		)
-		g_processed_ids[v.id()] = ct.Name()
+		g_processed_ids[v.id()] = ct.TypeName()
 	}
 
 	for _, v := range x.Namespaces {
@@ -402,7 +401,19 @@ func (x *xmlTree) gencxxtypes() error {
 		//fmt.Printf("%v\n", t)
 	}
 
+	for _, v := range x.Methods {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
 	for _, v := range x.OperatorFunctions {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
+	for _, v := range x.OperatorMethods {
 		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
 		gen_id_from_gccxml(v)
 		//fmt.Printf("%v\n", t)
@@ -515,6 +526,10 @@ func (x *xmlArray) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_ConstantArray
 }
 
+func (x *xmlArray) size() uintptr {
+	return str_to_uintptr(x.Size)
+}
+
 type xmlBase struct {
 	Type    string `xml:"type,attr"`
 	Access  string `xml:"access,attr"`
@@ -584,8 +599,9 @@ func (x *xml_record) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Record
 }
 
-func (x *xml_record) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(g_ids[x.id()]).(cxxtypes.Type)
+func (x *xml_record) typename() string {
+	return genTypeName(x.id(), gtnCfg{})
+	//return gen_id_from_gccxml(g_ids[x.id()]).(cxxtypes.Type)
 }
 
 func (x *xml_record) access() cxxtypes.AccessSpecifier {
@@ -594,6 +610,10 @@ func (x *xml_record) access() cxxtypes.AccessSpecifier {
 
 func (x *xml_record) offset() uintptr {
 	return 0
+}
+
+func (x *xml_record) size() uintptr {
+	return str_to_uintptr(x.Size)
 }
 
 func (x xml_record) infos() string {
@@ -683,8 +703,9 @@ func (x *xmlConstructor) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
-func (x *xmlConstructor) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlConstructor) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlConstructor) access() cxxtypes.AccessSpecifier {
@@ -750,8 +771,9 @@ func (x *xmlConverter) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
-func (x *xmlConverter) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlConverter) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlConverter) access() cxxtypes.AccessSpecifier {
@@ -792,8 +814,12 @@ func (x *xmlCvQualifiedType) context() string {
 }
 
 func (x *xmlCvQualifiedType) kind() cxxtypes.TypeKind {
-	//return cxxtypes.TK_
-	panic("no kind for cv - yet")
+	t := g_ids[x.Type]
+	return t.(i_kind).kind()
+}
+
+func (x *xmlCvQualifiedType) size() uintptr {
+	return str_to_uintptr(x.Size)
 }
 
 type xmlDestructor struct {
@@ -850,8 +876,9 @@ func (x *xmlDestructor) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
-func (x *xmlDestructor) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlDestructor) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlDestructor) access() cxxtypes.AccessSpecifier {
@@ -911,8 +938,9 @@ func (x *xmlEnumeration) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Enum
 }
 
-func (x *xmlEnumeration) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlEnumeration) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlEnumeration) access() cxxtypes.AccessSpecifier {
@@ -921,6 +949,10 @@ func (x *xmlEnumeration) access() cxxtypes.AccessSpecifier {
 
 func (x *xmlEnumeration) offset() uintptr {
 	return 0
+}
+
+func (x *xmlEnumeration) size() uintptr {
+	return str_to_uintptr(x.Size)
 }
 
 type xmlField struct {
@@ -977,8 +1009,9 @@ func (x *xmlField) kind() cxxtypes.TypeKind {
 	return t.(i_kind).kind()
 }
 
-func (x *xmlField) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
+func (x *xmlField) typename() string {
+	return genTypeName(x.Type, gtnCfg{})
+	//return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
 }
 
 func (x *xmlField) access() cxxtypes.AccessSpecifier {
@@ -1134,6 +1167,10 @@ func (x *xmlFundamentalType) kind() cxxtypes.TypeKind {
 	return g_n2tk[x.name()]
 }
 
+func (x *xmlFundamentalType) size() uintptr {
+	return str_to_uintptr(x.Size)
+}
+
 type xmlMethod struct {
 	Access      string `xml:"access,attr"`     // default "public"
 	Attributes  string `xml:"attributes,attr"` // implied
@@ -1194,9 +1231,10 @@ func (x *xmlMethod) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
-func (x *xmlMethod) cxxtype() cxxtypes.Type {
+func (x *xmlMethod) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
 	//fixme
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlMethod) access() cxxtypes.AccessSpecifier {
@@ -1430,6 +1468,10 @@ func (x *xmlPointerType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Ptr
 }
 
+func (x *xmlPointerType) size() uintptr {
+	return str_to_uintptr(x.Size)
+}
+
 type xmlReferenceType struct {
 	Align      string `xml:"align,attr"`
 	Attributes string `xml:"attributes,attr"` // implied
@@ -1463,6 +1505,10 @@ func (x *xmlReferenceType) context() string {
 
 func (x *xmlReferenceType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_LValueRef
+}
+
+func (x *xmlReferenceType) size() uintptr {
+	return str_to_uintptr(x.Size)
 }
 
 type xmlStruct struct {
@@ -1505,8 +1551,9 @@ func (x *xmlTypedef) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Typedef
 }
 
-func (x *xmlTypedef) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlTypedef) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlTypedef) access() cxxtypes.AccessSpecifier {
@@ -1515,6 +1562,11 @@ func (x *xmlTypedef) access() cxxtypes.AccessSpecifier {
 
 func (x *xmlTypedef) offset() uintptr {
 	return 0
+}
+
+func (x *xmlTypedef) size() uintptr {
+	t := g_ids[x.Type].(i_size)
+	return t.size()
 }
 
 type xmlUnimplemented struct {
@@ -1585,8 +1637,9 @@ func (x *xmlUnion) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Record
 }
 
-func (x *xmlUnion) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(x).(cxxtypes.Type)
+func (x *xmlUnion) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlUnion) access() cxxtypes.AccessSpecifier {
@@ -1595,6 +1648,10 @@ func (x *xmlUnion) access() cxxtypes.AccessSpecifier {
 
 func (x *xmlUnion) offset() uintptr {
 	return 0
+}
+
+func (x *xmlUnion) size() uintptr {
+	return str_to_uintptr(x.Size)
 }
 
 type xmlVariable struct {
@@ -1647,11 +1704,13 @@ func (x *xmlVariable) context() string {
 }
 
 func (x *xmlVariable) kind() cxxtypes.TypeKind {
-	return x.cxxtype().Kind()
+	t := g_ids[x.Type]
+	return t.(i_kind).kind()
 }
 
-func (x *xmlVariable) cxxtype() cxxtypes.Type {
-	return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
+func (x *xmlVariable) typename() string {
+	return genTypeName(x.Type, gtnCfg{})
+	//return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
 }
 
 func (x *xmlVariable) access() cxxtypes.AccessSpecifier {
@@ -2320,44 +2379,14 @@ func getScopeChainNames(node i_context) []string {
 }
 
 // getCxxtypesScope
-func getCxxtypesScope(node i_id) *cxxtypes.Scope {
-	scope := cxxtypes.Universe
-	dbg := false
+func getCxxtypesScope(node i_id) string {
+	scope := "::"
 	if n, ok := node.(i_context); ok {
-		scopenames := getScopeChainNames(n)
-		if dbg {
-			fmt.Printf("--looking for cxxtypes.Scope for id [%s] (%v)...\n", n.id(), scopenames)
-			fmt.Printf("-- (%v)\n", scopenames[1:])
-		}
-		if scopenames[0] == "::" {
-			scopenames = scopenames[1:]
-		}
-		if len(scopenames) == 0 {
+		ctxt := n.context()
+		if ctxt == "" {
 			return scope
 		}
-		scopenames = scopenames[:len(scopenames)-1]
-		for i, _ := range scopenames {
-			if dbg {
-				fmt.Printf(">> (%v) -> (%v)\n", scopenames[:i+1], strings.Join(scopenames[:i], "::"))
-			}
-			nn := scopenames[i] //strings.Join(scopenames[:i+1], "::")
-			if dbg {
-				fmt.Printf("--looking for [%s] in scope %p...\n", nn, scope)
-			}
-			obj := scope.Lookup(nn)
-			if obj == nil {
-				panic(fmt.Sprintf("no such scope [%s] (id=%s)\n%v\nuniverse:%p scope:%p",
-					nn, node.id(), scope, cxxtypes.Universe, scope))
-			}
-			scope = obj.Data.(*cxxtypes.Scope)
-		}
-	} else {
-		if dbg {
-			fmt.Printf("id[%s] hasnt no context... returning Universe\n", node.id())
-		}
-	}
-	if dbg {
-		fmt.Printf("--> found scope [%p] for node [%s]\n", scope, node.id())
+		return genTypeName(ctxt, gtnCfg{})
 	}
 	return scope
 }
@@ -2380,7 +2409,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 
 	var ct cxxtypes.Id = nil
 
-	gen_mbrs := func(mbrs string, scope *cxxtypes.Scope) []cxxtypes.Member {
+	gen_mbrs := func(mbrs string, scope string) []cxxtypes.Member {
 		members := make([]cxxtypes.Member, 0)
 		if mbrs == "" {
 			return members
@@ -2392,11 +2421,12 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			if !ok {
 				panic(fmt.Sprintf("gccxml: no such id [%s]", mbrid))
 			}
+			name := genTypeName(tmbr.id(), gtnCfg{})
 			mbr := tmbr.(i_field)
 			members = append(members,
 				cxxtypes.NewMember(
-					mbr.name(),
-					mbr.cxxtype(),
+					name, //mbr.name(),
+					mbr.typename(),
 					mbr.kind(),
 					mbr.access(),
 					mbr.offset(),
@@ -2406,15 +2436,15 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		return members
 	}
 
-	gen_enum_mbrs := func(mbrs []xmlEnumValue,
-		scope *cxxtypes.Scope) []cxxtypes.Member {
+	gen_enum_mbrs := func(mbrs []xmlEnumValue, scope string) []cxxtypes.Member {
 		members := make([]cxxtypes.Member, 0)
 		if len(mbrs) == 0 {
 			return members
 		}
 
 		// fixme: that's not always true... (could be unsigned int...)
-		typ := cxxtypes.IdByName("int").(cxxtypes.Type)
+		typ := "int"
+		//typ := cxxtypes.IdByName("int").(cxxtypes.Type)
 		for _, mbr := range mbrs {
 			members = append(members,
 				cxxtypes.NewMember(
@@ -2432,9 +2462,10 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	gen_args := func(args []xmlArgument) []cxxtypes.Parameter {
 		params := make([]cxxtypes.Parameter, 0, len(args))
 		for _, arg := range args {
+			tn := gen_id_from_gccxml(g_ids[arg.Type]).(cxxtypes.Type).TypeName()
 			p := cxxtypes.NewParameter(
 				arg.Name,
-				gen_id_from_gccxml(g_ids[arg.Type]).(cxxtypes.Type),
+				tn,
 				arg.Default != nil,
 			)
 			params = append(params, *p)
@@ -2446,7 +2477,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		bases := make([]cxxtypes.Base, 0)
 		for _, b := range xbases {
 			access := str_to_access(b.Access)
-			typ := gen_id_from_gccxml(g_ids[b.Type]).(cxxtypes.Type)
+			typ := gen_id_from_gccxml(g_ids[b.Type]).(cxxtypes.Type).TypeName()
 			offset := str_to_uintptr(b.Offset)
 			virtual := str_to_bool(b.Virtual)
 			bases = append(bases, cxxtypes.NewBase(offset, typ, access, virtual))
@@ -2462,8 +2493,10 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	case *xmlArray:
 		sz := str_to_uintptr(t.Size)
 		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
+		tn := typ.TypeName()
+		tsz := typ.TypeSize()
 		scope := getCxxtypesScope(t)
-		ct = cxxtypes.NewArrayType(sz, typ, scope)
+		ct = cxxtypes.NewArrayType(sz, tn, tsz, scope)
 
 	case *xmlConstructor:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
@@ -2477,7 +2510,8 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 
 		scope := getCxxtypesScope(t)
 		params := gen_args(t.Arguments)
-		ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
+		ret_type := "void" //FIXME ?
+		//ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
 		ct = cxxtypes.NewFunction(
 			scoped_name,
 			qual,
@@ -2507,7 +2541,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			spec,
 			variadic,
 			params,
-			ret_type,
+			ret_type.TypeName(),
 			scope,
 		)
 
@@ -2526,20 +2560,21 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			qual |= cxxtypes.TQ_Volatile
 		}
 		n := genTypeName(t.id(), gtnCfg{})
-		ct = cxxtypes.NewQualType(n, typ, scope, qual).(cxxtypes.Id)
+		ct = cxxtypes.NewQualType(n, typ.TypeName(), scope, qual).(cxxtypes.Id)
 
 	case *xmlPointerType:
-		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
+		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type).TypeName()
 		scope := getCxxtypesScope(t)
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		//fmt.Printf("--(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		ct = cxxtypes.NewPtrType(scoped_name, typ, scope)
 
 	case *xmlReferenceType:
-		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
+		tn := genTypeName(t.Type, gtnCfg{})
+		//typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type).TypeName()
 		scope := getCxxtypesScope(t)
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		ct = cxxtypes.NewRefType(scoped_name, typ, scope)
+		ct = cxxtypes.NewRefType(scoped_name, tn, scope)
 
 	case *xmlDestructor:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
@@ -2555,7 +2590,8 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		variadic := strings.Contains(scoped_name, "...")
 
 		params := []cxxtypes.Parameter{}
-		ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
+		ret_type := "void" //FIXME ?
+		//ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
 		scope := getCxxtypesScope(t)
 		ct = cxxtypes.NewFunction(
 			scoped_name,
@@ -2590,7 +2626,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			spec,
 			variadic,
 			params,
-			ret_type,
+			ret_type.TypeName(),
 			scope,
 		)
 
@@ -2609,7 +2645,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			spec,
 			variadic,
 			params,
-			ret_type,
+			ret_type.TypeName(),
 			scope,
 		)
 
@@ -2620,9 +2656,9 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		st := cxxtypes.NewStructType(scoped_name, sz, scope)
 		// un-mark from processing:
 		delete(g_processing_ids, node.id())
-		g_processed_ids[node.id()] = st.Name()
+		g_processed_ids[node.id()] = st.TypeName()
 		//
-		st.SetMembers(gen_mbrs(t.Members, scope))
+		st.SetMembers(gen_mbrs(t.Members, scoped_name))
 		st.SetBases(gen_bases(t.Bases))
 		ct = st
 
@@ -2633,9 +2669,9 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		st := cxxtypes.NewClassType(scoped_name, sz, scope)
 		// un-mark from processing:
 		delete(g_processing_ids, node.id())
-		g_processed_ids[node.id()] = st.Name()
+		g_processed_ids[node.id()] = st.TypeName()
 		//
-		st.SetMembers(gen_mbrs(t.Members, scope))
+		st.SetMembers(gen_mbrs(t.Members, scoped_name))
 		st.SetBases(gen_bases(t.Bases))
 		ct = st
 
@@ -2660,7 +2696,8 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 
 		scope := getCxxtypesScope(t)
 		params := gen_args(t.Arguments)
-		ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
+		//ret_type := gen_id_from_gccxml(g_ids[t.Returns]).(cxxtypes.Type)
+		ret_type := genTypeName(t.Returns, gtnCfg{})
 		ct = cxxtypes.NewFunction(
 			scoped_name,
 			qual,
@@ -2704,7 +2741,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			spec,
 			variadic,
 			params,
-			ret_type,
+			ret_type.TypeName(),
 			scope,
 		)
 
@@ -2730,22 +2767,24 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			spec,
 			variadic,
 			params,
-			ret_type,
+			ret_type.TypeName(),
 			scope,
 		)
 
 	case *xmlTypedef:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
-		typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
+		//typ := gen_id_from_gccxml(g_ids[t.Type]).(cxxtypes.Type)
+		tn := genTypeName(t.Type, gtnCfg{}) //typ.TypeName()
+		tsz := g_ids[t.Type].(i_size).size()
 		scope := getCxxtypesScope(t)
-		ct = cxxtypes.NewTypedefType(scoped_name, typ, scope)
+		ct = cxxtypes.NewTypedefType(scoped_name, tn, tsz, scope)
 
 	case *xmlUnion:
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		//sz := str_to_uintptr(t.Size)
 		scope := getCxxtypesScope(t)
 		//fmt.Printf("**> [%s] [%s] mbrs:[%s]\n", t.name(), scoped_name, t.Members)
-		mbrs := gen_mbrs(t.Members, scope)
+		mbrs := gen_mbrs(t.Members, scoped_name)
 		ct = cxxtypes.NewUnionType(scoped_name, mbrs, scope)
 
 	default:

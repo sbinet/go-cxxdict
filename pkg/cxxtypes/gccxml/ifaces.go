@@ -38,10 +38,16 @@ type i_kind interface {
 type i_field interface {
 	i_name
 	kind() cxxtypes.TypeKind
-	cxxtype() cxxtypes.Type
+	typename() string
 	access() cxxtypes.AccessSpecifier
 	offset() uintptr
 }
+
+type i_size interface {
+	i_name
+	size() uintptr
+}
+
 type i_gentypename interface {
 	gentypename() string
 }

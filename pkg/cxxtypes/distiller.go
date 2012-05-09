@@ -37,7 +37,7 @@ func DistillIdentifiers(distillerName string, r io.Reader) error {
 
 // SaveIdentifiers dumps all cxxtypes.Id into the specified io.Writer
 func SaveIdentifiers(dst io.Writer) error {
-	if false {
+	if true {
 		enc := json.NewEncoder(dst)
 		if enc == nil {
 			return fmt.Errorf("cxxtypes: could not create encoder")
@@ -61,8 +61,24 @@ func SaveIdentifiers(dst io.Writer) error {
 
 func init() {
 	// register types with gob
-	gob.Register(OverloadFunctionSet{})
+	gob.Register(ArrayType{})
+	gob.Register(ClassType{})
+	gob.Register(CvrQualType{})
+	gob.Register(EnumType{})
+	gob.Register(FunctionType{})
+	gob.Register(FundamentalType{})
+	gob.Register(PtrType{})
 	gob.Register(RefType{})
+	gob.Register(StructType{})
+	gob.Register(TypedefType{})
+	gob.Register(UnionType{})
+	gob.Register(placeHolderType{})
+
+	// register identifiers with gob
+	gob.Register(Namespace{})
+	gob.Register(Scope{})
+	gob.Register(Function{})
+	gob.Register(OverloadFunctionSet{})
 }
 
 // EOF

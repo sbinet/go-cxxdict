@@ -66,6 +66,7 @@ func main() {
 				"WithPrivateBase",
 				"LongStr_t",
 				//"std::vector<Foo>",
+				"",
 				"std",
 				"std::abs",
 				"Math::do_hello",
@@ -85,7 +86,7 @@ func main() {
 				fmt.Printf(":: inspecting [%s]...\n", n)
 				switch tt := t.(type) {
 				case *cxxtypes.Namespace:
-					fmt.Printf(" -> %s\n", tt.IdScopedName())
+					fmt.Printf(" -> %s (#mbrs: %d)\n", tt.IdScopedName(), tt.NumMember())
 				case *cxxtypes.ClassType:
 					fmt.Printf(" #bases: %d\n", tt.NumBase())
 					for i := 0; i < tt.NumBase(); i++ {
@@ -142,6 +143,12 @@ func main() {
 		}
 	}
 	err = dst.Sync()
+	if err != nil {
+		fmt.Printf("**err** %v\n", err)
+		os.Exit(1)
+	}
+
+	err = dst.Close()
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)

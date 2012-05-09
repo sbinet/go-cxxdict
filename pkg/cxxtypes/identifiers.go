@@ -2,6 +2,7 @@ package cxxtypes
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -28,7 +29,7 @@ type Id interface {
 	IdKind() IdKind
 
 	// DeclScope returns the declaring scope of this identifier
-	DeclScope() *Scope
+	DeclScope() Id
 }
 
 // IdKind represents the specific kind of identifier an Id represents.
@@ -87,152 +88,165 @@ func NumId() int {
 	return len(g_ids)
 }
 
-// idBase implements the Id interface
-type idBase struct {
-	name  string
-	kind  IdKind
-	scope *Scope
+// BaseId implements the Id interface
+type BaseId struct {
+	Name  string
+	Kind  IdKind
+	Scope string
 }
 
-func (id *idBase) IdName() string {
-	n := strings.Split(id.name, "::")
+func (id *BaseId) IdName() string {
+	n := strings.Split(id.Name, "::")
 	return n[len(n)-1]
 }
 
-func (id *idBase) IdScopedName() string {
-	return id.name
+func (id *BaseId) IdScopedName() string {
+	return id.Name
 }
 
-func (id *idBase) IdKind() IdKind {
-	return id.kind
+func (id *BaseId) IdKind() IdKind {
+	return id.Kind
 }
 
-func (id *idBase) DeclScope() *Scope {
-	return id.scope
+func (id *BaseId) DeclScope() Id {
+	return get_scope_from_name(id.Scope)
 }
 
 // Namespace represents a namespace identifier
 type Namespace struct {
-	idBase `cxxtypes:"namespace"`
+	BaseId  `cxxtypes:"namespace"`
+	Members []string
 }
 
 // NewNamespace creates a new namespace identifier
-func NewNamespace(name string, scope *Scope) *Namespace {
+func NewNamespace(name string, scope string) *Namespace {
 	id := &Namespace{
-		idBase: idBase{
-			name:  name,
-			kind:  IK_Nsp,
-			scope: scope,
+		BaseId: BaseId{
+			Name:  name,
+			Kind:  IK_Nsp,
+			Scope: scope,
 		},
+		Members: make([]string, 0),
 	}
 	add_id(id)
+	add_id_to_scope(name, scope)
 	return id
+}
+
+// NumMember returns the number of members of that namespace
+func (id *Namespace) NumMember() int {
+	return len(id.Members)
+}
+
+// Member returns the namespace's i'th member
+// It panics if i is not in the range [0, NumMember())
+func (t *Namespace) Member(i int) Id {
+	if i < 0 || i >= len(t.Members) {
+		panic("cxxtypes: Member index out of range")
+	}
+	return IdByName(t.Members[i])
 }
 
 // Function represents a function identifier
 //  e.g. std::fabs
 type Function struct {
-	idBase   `cxxtypes:"function"`
-	qual     TypeQualifier
-	tspec    TypeSpecifier // or'ed value of virtual/inline/...
-	variadic bool          // whether this function is variadic
-	params   []Parameter   // the parameters to this function
-	ret      Type          // return type of this function
+	BaseId   `cxxtypes:"function"`
+	Qual     TypeQualifier
+	Spec     TypeSpecifier // or'ed value of virtual/inline/...
+	Variadic bool          // whether this function is variadic
+	Params   []Parameter   // the parameters to this function
+	Ret      string        // return type of this function
 }
 
 // NewFunction returns a new function identifier
-func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret Type, scope *Scope) *Function {
+func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret string, scope string) *Function {
 	id := &Function{
-		idBase: idBase{
-			name:  name,
-			kind:  IK_Fct,
-			scope: scope,
+		BaseId: BaseId{
+			Name:  name,
+			Kind:  IK_Fct,
+			Scope: scope,
 		},
-		qual:     qual,
-		tspec:    specifiers,
-		variadic: variadic,
-		params:   make([]Parameter, 0, len(params)),
-		ret:      ret,
+		Qual:     qual,
+		Spec:     specifiers,
+		Variadic: variadic,
+		Params:   make([]Parameter, 0, len(params)),
+		Ret:      ret,
 	}
-	id.params = append(id.params, params...)
-	//copy(id.params, params)
+	id.Params = append(id.Params, params...)
 	add_id(id)
+	add_id_to_scope(name, scope)
 	return id
 }
 
-func (t *Function) to_commonType() *commonType {
-	return nil //fixme
+func (t *Function) TypeName() string {
+	return t.BaseId.Name
 }
 
-func (t *Function) Name() string {
-	return t.name
-}
-
-func (t *Function) Size() uintptr {
+func (t *Function) TypeSize() uintptr {
 	return 0
 }
 
-func (t *Function) Kind() TypeKind {
+func (t *Function) TypeKind() TypeKind {
 	return TK_FunctionProto //fixme ?
 }
 
 func (t *Function) Qualifiers() TypeQualifier {
-	return t.qual
+	return t.Qual
 }
 
 // Specifier returns the type specifier for this function
 func (t *Function) Specifier() TypeSpecifier {
-	return t.tspec
+	return t.Spec
 }
 
 func (t *Function) IsConst() bool {
-	return (t.qual & TQ_Const) != 0
+	return (t.Qual & TQ_Const) != 0
 }
 
 func (t *Function) IsVirtual() bool {
-	return (t.tspec & TS_Virtual) != 0
+	return (t.Spec & TS_Virtual) != 0
 }
 
 func (t *Function) IsStatic() bool {
-	return (t.tspec & TS_Static) != 0
+	return (t.Spec & TS_Static) != 0
 }
 
 func (t *Function) IsConstructor() bool {
-	return (t.tspec & TS_Constructor) != 0
+	return (t.Spec & TS_Constructor) != 0
 }
 
 func (t *Function) IsDestructor() bool {
-	return (t.tspec & TS_Destructor) != 0
+	return (t.Spec & TS_Destructor) != 0
 }
 
 func (t *Function) IsCopyConstructor() bool {
-	return (t.tspec & TS_CopyCtor) != 0
+	return (t.Spec & TS_CopyCtor) != 0
 }
 
 func (t *Function) IsOperator() bool {
-	return (t.tspec & TS_Operator) != 0
+	return (t.Spec & TS_Operator) != 0
 }
 
 func (t *Function) IsMethod() bool {
-	return (t.tspec & TS_Method) != 0
+	return (t.Spec & TS_Method) != 0
 }
 
 func (t *Function) IsInline() bool {
-	return (t.tspec & TS_Inline) != 0
+	return (t.Spec & TS_Inline) != 0
 }
 
 func (t *Function) IsConverter() bool {
-	return (t.tspec & TS_Converter) != 0
+	return (t.Spec & TS_Converter) != 0
 }
 
 // IsVariadic returns whether this function is variadic
 func (t *Function) IsVariadic() bool {
-	return t.variadic
+	return t.Variadic
 }
 
 // NumParam returns a function's input parameter count.
 func (t *Function) NumParam() int {
-	return len(t.params)
+	return len(t.Params)
 }
 
 // Param returns the i'th parameter of this function.
@@ -241,14 +255,14 @@ func (t *Function) Param(i int) *Parameter {
 	if i < 0 || i >= t.NumParam() {
 		panic("cxxtypes: Param index out of range")
 	}
-	return &t.params[i]
+	return &t.Params[i]
 }
 
 // NumDefaultParam returns the number of parameters of a function's input which have a default value.
 func (t *Function) NumDefaultParam() int {
 	n := 0
-	for i, _ := range t.params {
-		if t.params[i].defval {
+	for i, _ := range t.Params {
+		if t.Params[i].DefVal {
 			n += 1
 		}
 	}
@@ -259,7 +273,7 @@ func (t *Function) NumDefaultParam() int {
 // FIXME: return nil for 'void' fct ?
 // FIXME: return nil for ctor/dtor ?
 func (t *Function) ReturnType() Type {
-	return t.ret
+	return IdByName(t.Ret).(Type)
 }
 
 // Signature returns the (C++11) signature of this function
@@ -272,13 +286,13 @@ func (t *Function) Signature() string {
 		s = append(s, "static ")
 	}
 	s = append(s, t.IdScopedName(), "(")
-	if len(t.params) > 0 {
-		for i, _ := range t.params {
+	if len(t.Params) > 0 {
+		for i, _ := range t.Params {
 			s = append(s,
-				strings.TrimSpace(t.Param(i).Type().Name()),
+				strings.TrimSpace(t.Param(i).Type),
 				" ",
-				strings.TrimSpace(t.Param(i).Name()))
-			if i < len(t.params)-1 {
+				strings.TrimSpace(t.Param(i).Name))
+			if i < len(t.Params)-1 {
 				s = append(s, ", ")
 			}
 		}
@@ -299,20 +313,20 @@ func (t *Function) Signature() string {
 	}
 	//fixme: add fct qualifiers: const|static|inline
 	if !t.IsConstructor() && !t.IsDestructor() {
-		s = append(s, "-> ", t.ReturnType().Name())
+		s = append(s, "-> ", t.ReturnType().TypeName())
 	}
 	return strings.TrimSpace(strings.Join(s, ""))
 }
 
 // OverloadFunctionSet is a set of functions which are part of the same overload
 type OverloadFunctionSet struct {
-	idBase `cxxtypes:"overloadfctset"`
-	fcts   []*Function
+	BaseId `cxxtypes:"overloadfctset"`
+	Fcts   []*Function
 }
 
 // NumFunction returns the number of overloads in that set
 func (id *OverloadFunctionSet) NumFunction() int {
-	return len(id.fcts)
+	return len(id.Fcts)
 }
 
 // Function returns the i-th overloaded function in the set
@@ -321,7 +335,24 @@ func (id *OverloadFunctionSet) Function(i int) *Function {
 	if i < 0 || i >= id.NumFunction() {
 		panic("cxxtypes: Function index out of range")
 	}
-	return id.fcts[i]
+	return id.Fcts[i]
+}
+
+func (id *OverloadFunctionSet) TypeName() string {
+	return id.Fcts[0].Name
+}
+
+func (id *OverloadFunctionSet) TypeSize() uintptr {
+	return 0
+}
+
+func (id *OverloadFunctionSet) TypeKind() TypeKind {
+	return TK_FunctionProto //fixme ?
+}
+
+func (id *OverloadFunctionSet) Qualifiers() TypeQualifier {
+	//FIXME: is that always true ?
+	return id.Fcts[0].Qual
 }
 
 // ----------------------------------------------------------------------------
@@ -335,16 +366,16 @@ func add_id(id Id) Id {
 	case *Function:
 		if _, exists := g_ids[n]; !exists {
 			g_ids[n] = &OverloadFunctionSet{
-				idBase: idBase{
-					name:  id.IdScopedName(),
-					kind:  id.IdKind(),
-					scope: id.DeclScope(),
+				BaseId: BaseId{
+					Name:  id.IdScopedName(),
+					Kind:  id.IdKind(),
+					Scope: id.Scope,
 				},
-				fcts: make([]*Function, 0, 1),
+				Fcts: make([]*Function, 0, 1),
 			}
 		}
 		o := g_ids[n].(*OverloadFunctionSet)
-		o.fcts = append(o.fcts, id)
+		o.Fcts = append(o.Fcts, id)
 		//println(":: added [" + id.Signature() + "] to overload-fct-set...")
 	default:
 		if _, exists := g_ids[n]; exists {
@@ -355,6 +386,30 @@ func add_id(id Id) Id {
 	}
 	//println(":: added [" + n + "]")
 	return g_ids[n]
+}
+
+func find_idx(slice []string, x string) int {
+	for i, str := range slice {
+		if str == x {
+			return i
+		}
+	}
+	return -1
+}
+func add_id_to_scope(id string, scope string) {
+	parent := IdByName(scope)
+	switch t := parent.(type) {
+	case *Namespace:
+		sort.Strings(t.Members)
+		//FIXME: use sort.SearchStrings when fixed ?
+		idx := find_idx(t.Members, id)
+		if idx == -1 {
+			t.Members = append(t.Members, id)
+		}
+
+	default:
+		//fmt.Printf("** no handling for [%t] (id=%s, scope=%s)\n", t, id, scope)
+	}
 }
 
 // ----------------------------------------------------------------------------
