@@ -70,12 +70,6 @@ func (d *gccxmlDistiller) LoadIdentifiers(r io.Reader) error {
 	fmt.Printf("== gccxml data ==\n")
 	root.printStats()
 
-	// generate the scopes in cxxtypes' "ast"
-	err = root.gencxxscopes()
-	if err != nil {
-		return err
-	}
-
 	// generate cxxtypes
 	err = root.gencxxtypes()
 	if err != nil {

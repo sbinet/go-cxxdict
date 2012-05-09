@@ -76,7 +76,6 @@ func init() {
 
 	// register identifiers with gob
 	gob.Register(Namespace{})
-	gob.Register(Scope{})
 	gob.Register(Function{})
 	gob.Register(OverloadFunctionSet{})
 }

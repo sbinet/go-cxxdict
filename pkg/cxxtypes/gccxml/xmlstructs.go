@@ -239,100 +239,6 @@ func (x *xmlTree) fixup() {
 
 }
 
-func (x *xmlTree) gencxxscopes() error {
-
-	build_scopes_for := func(v i_context) {
-		if v.name() == "::" {
-			// global namespace. nothing to do.
-			return
-		}
-		dbg := false
-		scope := cxxtypes.Universe
-		scopeids := []string{v.id()}
-		var vv i_context = v
-		for {
-			id := vv.context()
-			if id == "" {
-				panic("invalid context-id for node [" + vv.name() + "]")
-			}
-			vv = g_ids[id].(i_context)
-			if vv.name() == "::" {
-				break
-			}
-			scopeids = append(scopeids, id)
-		}
-		scope = cxxtypes.Universe
-		for i := len(scopeids) - 1; 0 <= i; i-- {
-			ns := g_ids[scopeids[i]].(i_context)
-			if dbg {
-				fmt.Printf("--> s[%d]=%s [name=%s pid=%s]\n", i, scopeids[i], ns.name(), ns.context())
-			}
-			pid := ns.context()
-			if pid == "" {
-				scope = cxxtypes.Universe
-			}
-			//name := getScopedName(ns)
-			name := genTypeName(ns.id(), gtnCfg{})
-			if scope == cxxtypes.Universe {
-				if dbg {
-					fmt.Printf("-- adding [%s](%s) to universe(%p) - pid=[%s,%s]\n",
-						ns.name(), name, scope, pid, g_ids[pid].(i_name).name())
-				}
-			}
-			if dbg {
-				fmt.Printf("-- lookup [%s] into scope [%p]\n", name, scope)
-			}
-			obj := scope.Lookup(name)
-			if obj == nil {
-				ok_typ := node_to_cxxoktype(ns)
-				if dbg {
-					fmt.Printf("-- adding obj [%s](%v) to scope [%p]...\n",
-						name, ok_typ, scope)
-				}
-				scope.Insert(cxxtypes.NewObj(ok_typ, name))
-				obj = scope.Lookup(name)
-				obj.Data = cxxtypes.NewScope(scope)
-			}
-			scope = obj.Data.(*cxxtypes.Scope)
-		}
-	}
-
-	for _, v := range x.Namespaces {
-		build_scopes_for(v)
-		// mark the global namespace for later
-		if v.context() == "" {
-			g_globalns_id = v.id()
-		}
-	}
-
-	//FIXME: handle namespace aliases
-	// probably by having obj.Data point at the obj.Data of the scope
-	// it is aliasing...
-	// for _,v := range x.NamespaceAliases {
-	// 	build_scopes_for(v)
-	// }
-
-	for _, v := range x.Classes {
-		build_scopes_for(v)
-	}
-
-	for _, v := range x.Structs {
-		build_scopes_for(v)
-	}
-
-	for _, v := range x.Unions {
-		build_scopes_for(v)
-	}
-
-	for _, v := range x.Enumerations {
-		build_scopes_for(v)
-	}
-
-	//fmt.Printf("==scope==: %v\n", cxxtypes.Universe)
-	//fmt.Printf("==std==:\n%v\n", cxxtypes.Universe.Lookup("std").Data.(*cxxtypes.Scope))
-	return nil
-}
-
 func (x *xmlTree) gencxxtypes() error {
 
 	// first, generate builtins.
@@ -1779,26 +1685,6 @@ func str_to_access(s string) cxxtypes.AccessSpecifier {
 	panic("unreachable")
 }
 
-// node_to_cxxoktype returns a cxxtypes.ObjKind based on the underlying node type
-func node_to_cxxoktype(node i_id) cxxtypes.ObjKind {
-	switch node.(type) {
-	case *xmlNamespace, *xmlNamespaceAlias:
-		return cxxtypes.OK_Nsp
-
-	case *xmlConstructor, *xmlConverter, *xmlDestructor,
-		*xmlFunction, *xmlMethod,
-		*xmlOperatorFunction, *xmlOperatorMethod:
-		return cxxtypes.OK_Fun
-
-	case *xmlVariable:
-		return cxxtypes.OK_Var
-
-	default:
-		return cxxtypes.OK_Typ
-	}
-	return cxxtypes.OK_Bad
-}
-
 // addTemplateToName
 func addTemplateToName(n, demangled string) string {
 	name := n
@@ -2401,6 +2287,8 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	// are we processing that id ?
 	if proc, ok := g_processing_ids[node.id()]; ok && proc {
 		n := genTypeName(node.id(), gtnCfg{})
+		//FIXME: panic or not ?
+		panic("placeholder:"+n)
 		return cxxtypes.NewPlaceHolder(n).(cxxtypes.Id)
 	}
 
