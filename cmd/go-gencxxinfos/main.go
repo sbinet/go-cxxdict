@@ -3,7 +3,7 @@
 package main
 
 import (
-	//"flag"
+	"flag"
 	"fmt"
 	"os"
 
@@ -13,17 +13,20 @@ import (
 
 const dbg = 1
 
-//var fname *string = flag.String("fname", "", )
+var fname *string = flag.String("fname", "", "gccxml file or clang file from which to distill identifiers")
+var oname *string = flag.String("o", "ids.db", "output file in which to store cxxinfos")
 
 func main() {
 	fmt.Printf("== go-gencxxinfos ==\n")
-	f, err := os.Open("t.xml")
+	flag.Parse()
+
+	f, err := os.Open(*fname)
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)
 	}
 
-	err = cxxtypes.DistillIdentifiers("gccxml", f)
+	err = cxxtypes.LoadIds("gccxml", f)
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)
@@ -128,20 +131,19 @@ func main() {
 
 	}
 
-	dst, err := os.Create("ids.db")
+
+	dst, err := os.Create(*oname)
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)
 	}
-	defer dst.Close()
 
-	if true {
-		err = cxxtypes.SaveIdentifiers(dst)
-		if err != nil {
-			fmt.Printf("**err** %v\n", err)
-			os.Exit(1)
-		}
+	err = cxxtypes.SaveIds(dst)
+	if err != nil {
+		fmt.Printf("**err** %v\n", err)
+		os.Exit(1)
 	}
+
 	err = dst.Sync()
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
@@ -153,6 +155,7 @@ func main() {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)
 	}
+
 }
 
 // EOF
