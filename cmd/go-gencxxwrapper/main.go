@@ -137,7 +137,8 @@ func main() {
 	fmt.Printf("wrapper...\n")
 	gen := wrapper.NewGenerator()
 	gen.Fd.Name = "CRoot"
-	gen.Fd.Package = "go-cxx-croot"
+	gen.Fd.Package = "go_cxx_croot"
+	gen.Fd.Header = "croot/CRoot.h"
 
 	err = gen.GenerateAllFiles()
 	if err != nil {

@@ -23,11 +23,21 @@ func RegisterPlugin(p Plugin) error {
 
 // FileDescriptor describes a wrapper-output
 type FileDescriptor struct {
-	Name       string   // name of this file descriptor, for debugging
-	Package    string   // name of the package this file descriptor wraps
-	Dependency []string // list of dependencies (pkgs, other file descriptors)
+	// name of this file descriptor, usually the library 
+	// name (w/o prefix and suffix. ie: Foo, not libFoo.so)
+	Name string
 
-	Files map[string]io.WriteCloser // the products of the wrapping
+	// name of the package this file descriptor wraps
+	Package string
+
+	// name of the header containing the declarations for this library
+	Header string
+
+	// list of dependencies (pkgs, other file descriptors)
+	Dependency []string
+
+	// the products of the wrapping
+	Files map[string]io.WriteCloser
 }
 
 // Generator is the type whose methods generate the output, 
@@ -35,6 +45,7 @@ type FileDescriptor struct {
 type Generator struct {
 	plugins []Plugin
 	Fd      FileDescriptor
+	Args    map[string]interface{}
 }
 
 // P prints the arguments to the generated output
@@ -49,6 +60,13 @@ func (g *Generator) GenerateAllFiles() error {
 			return err
 		}
 		g.plugins = append(g.plugins, p)
+	}
+
+	for _, p := range g.plugins {
+		err := p.Generate(&g.Fd)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -66,7 +84,7 @@ func NewGenerator() *Generator {
 	gen := &Generator{}
 	gen.plugins = make([]Plugin, 0)
 	gen.Fd.Files = make(map[string]io.WriteCloser)
-
+	gen.Args = make(map[string]interface{})
 	return gen
 }
 
