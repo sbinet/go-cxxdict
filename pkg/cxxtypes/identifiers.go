@@ -67,6 +67,10 @@ var g_ids map[string]Id
 // IdByName retrieves an identifier by its fully qualified name.
 // Returns nil if no such identifier exists.
 func IdByName(n string) Id {
+	// normalize global namespace name...
+	if n == "::" {
+		n = ""
+	}
 	id, ok := g_ids[n]
 	if ok {
 		return id

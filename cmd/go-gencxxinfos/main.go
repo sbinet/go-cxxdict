@@ -124,13 +124,7 @@ func main() {
 		}
 		ids := cxxtypes.IdNames()
 		fmt.Printf("== distilled [%d] identifiers.\n", len(ids))
-		// for _,n := range names {
-		// 	t := cxxtypes.TypeByName(n)
-		// 	fmt.Printf("[%s]: %v\n", n, t)
-		// }
-
 	}
-
 
 	dst, err := os.Create(*oname)
 	if err != nil {

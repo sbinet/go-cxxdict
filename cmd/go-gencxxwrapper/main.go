@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
+	"bitbucket.org/binet/go-cxxdict/pkg/wrapper"
+	_ "bitbucket.org/binet/go-cxxdict/pkg/wrapper/plugins/cxxgo"
 )
 
 const dbg = 1
@@ -77,6 +79,9 @@ func main() {
 				"std::vector<Foo>::push_back",
 				"std::vector<Foo>::size",
 				//"std::locale",
+				"EnumNs::kHasRange",
+				"WithPrivateBase::kMinCap",
+				"kMinCap",
 			}
 			for _, n := range names {
 				t := cxxtypes.IdByName(n)
@@ -110,6 +115,7 @@ func main() {
 						m := tt.Member(i)
 						fmt.Printf(" %d: %v\n", i, m)
 					}
+				//case *cxxtypes.Enum
 				case *cxxtypes.OverloadFunctionSet:
 					for i := 0; i < tt.NumFunction(); i++ {
 						fmt.Printf("%s: %s\n",
@@ -128,6 +134,19 @@ func main() {
 		// }
 
 	}
+	fmt.Printf("wrapper...\n")
+	gen := wrapper.NewGenerator()
+	gen.Fd.Name = "CRoot"
+	gen.Fd.Package = "go-cxx-croot"
+
+	err = gen.GenerateAllFiles()
+	if err != nil {
+		fmt.Printf("%s: %v\n", os.Args[0], err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("plugins: %v\n", gen.Plugins())
+
 }
 
 // EOF

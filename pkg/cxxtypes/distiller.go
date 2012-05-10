@@ -52,11 +52,11 @@ func SaveIds(dst io.Writer) error {
 	d := make(map[string]interface{})
 	keys := make([]string, 0, len(g_ids))
 	vals := make([]Id, 0, len(g_ids))
-	for k,_ := range g_ids {
+	for k, _ := range g_ids {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	for _,k := range keys {
+	for _, k := range keys {
 		vals = append(vals, g_ids[k])
 	}
 	d["Keys"] = keys
@@ -65,7 +65,6 @@ func SaveIds(dst io.Writer) error {
 }
 
 type gobDistiller struct {
-	
 }
 
 func (g *gobDistiller) LoadIdentifiers(src io.Reader) error {
@@ -87,7 +86,7 @@ func (g *gobDistiller) LoadIdentifiers(src io.Reader) error {
 	//fmt.Printf("n-keys: %v\n", len(keys))
 	//fmt.Printf("n-vals: %v\n", len(ids))
 
-	for i,k := range keys {
+	for i, k := range keys {
 		// FIXME: handle duplicates, if any
 		g_ids[k] = ids[i]
 	}
@@ -114,6 +113,7 @@ func init() {
 	gob.Register(&Namespace{})
 	gob.Register(&Function{})
 	gob.Register(&OverloadFunctionSet{})
+	gob.Register(&Member{})
 
 	// register the "default" distiller
 	RegisterDistiller("gob", &gobDistiller{})

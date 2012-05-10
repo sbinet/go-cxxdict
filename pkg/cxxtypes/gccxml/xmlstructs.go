@@ -507,7 +507,6 @@ func (x *xml_record) kind() cxxtypes.TypeKind {
 
 func (x *xml_record) typename() string {
 	return genTypeName(x.id(), gtnCfg{})
-	//return gen_id_from_gccxml(g_ids[x.id()]).(cxxtypes.Type)
 }
 
 func (x *xml_record) access() cxxtypes.AccessSpecifier {
@@ -611,7 +610,6 @@ func (x *xmlConstructor) kind() cxxtypes.TypeKind {
 
 func (x *xmlConstructor) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlConstructor) access() cxxtypes.AccessSpecifier {
@@ -679,7 +677,6 @@ func (x *xmlConverter) kind() cxxtypes.TypeKind {
 
 func (x *xmlConverter) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlConverter) access() cxxtypes.AccessSpecifier {
@@ -784,7 +781,6 @@ func (x *xmlDestructor) kind() cxxtypes.TypeKind {
 
 func (x *xmlDestructor) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlDestructor) access() cxxtypes.AccessSpecifier {
@@ -846,7 +842,6 @@ func (x *xmlEnumeration) kind() cxxtypes.TypeKind {
 
 func (x *xmlEnumeration) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlEnumeration) access() cxxtypes.AccessSpecifier {
@@ -917,7 +912,6 @@ func (x *xmlField) kind() cxxtypes.TypeKind {
 
 func (x *xmlField) typename() string {
 	return genTypeName(x.Type, gtnCfg{})
-	//return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
 }
 
 func (x *xmlField) access() cxxtypes.AccessSpecifier {
@@ -1139,8 +1133,6 @@ func (x *xmlMethod) kind() cxxtypes.TypeKind {
 
 func (x *xmlMethod) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//fixme
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlMethod) access() cxxtypes.AccessSpecifier {
@@ -1459,7 +1451,6 @@ func (x *xmlTypedef) kind() cxxtypes.TypeKind {
 
 func (x *xmlTypedef) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlTypedef) access() cxxtypes.AccessSpecifier {
@@ -1545,7 +1536,6 @@ func (x *xmlUnion) kind() cxxtypes.TypeKind {
 
 func (x *xmlUnion) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
-	//return gen_id_from_gccxml(x).(cxxtypes.Type)
 }
 
 func (x *xmlUnion) access() cxxtypes.AccessSpecifier {
@@ -1616,7 +1606,6 @@ func (x *xmlVariable) kind() cxxtypes.TypeKind {
 
 func (x *xmlVariable) typename() string {
 	return genTypeName(x.Type, gtnCfg{})
-	//return gen_id_from_gccxml(g_ids[x.Type]).(cxxtypes.Type)
 }
 
 func (x *xmlVariable) access() cxxtypes.AccessSpecifier {
@@ -2288,7 +2277,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 	if proc, ok := g_processing_ids[node.id()]; ok && proc {
 		n := genTypeName(node.id(), gtnCfg{})
 		//FIXME: panic or not ?
-		panic("placeholder:"+n)
+		panic("placeholder:" + n)
 		return cxxtypes.NewPlaceHolder(n).(cxxtypes.Id)
 	}
 
@@ -2332,11 +2321,16 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 
 		// fixme: that's not always true... (could be unsigned int...)
 		typ := "int"
-		//typ := cxxtypes.IdByName("int").(cxxtypes.Type)
 		for _, mbr := range mbrs {
+			n := ""
+			if scope == "" || scope == "::" {
+				n = mbr.Name
+			} else {
+				n = strings.Join([]string{scope, mbr.Name}, "::")
+			}
 			members = append(members,
 				cxxtypes.NewMember(
-					mbr.Name,
+					n,
 					typ,
 					cxxtypes.TK_Int,
 					cxxtypes.AS_Public,
@@ -2495,6 +2489,8 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		scoped_name := genTypeName(t.id(), gtnCfg{})
 		//fmt.Printf("--enum(%s)[%s][%s]...\n", t.id(), t.name(), scoped_name)
 		scope := getCxxtypesScope(t)
+		// do note that the enum-values "leak" into the scope holding the
+		// declaration of the enum-type.
 		mbrs := gen_enum_mbrs(t.EnumValues, scope)
 		ct = cxxtypes.NewEnumType(scoped_name, mbrs, scope)
 

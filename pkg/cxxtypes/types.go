@@ -763,8 +763,17 @@ func NewEnumType(n string, members []Member, scope string) *EnumType {
 		Members: make([]Member, 0, len(members)),
 	}
 	t.Members = append(t.Members, members...)
-	// FIXME: enum-values *should* leak into scope.Outer()!
-	set_scope(t.Members, t, scope)
+	// enum members "leak" into the scope declaring the enum-type
+	parent_scope := ""
+	if scope != "" && scope != "::" {
+		parent_scope = IdByName(scope).DeclScope().IdScopedName()
+	}
+	set_scope(t.Members, t, parent_scope)
+
+	// add enum-members to the identifier-registry
+	for i,_ := range t.Members {
+		add_id(&t.Members[i])
+	}
 
 	add_type(t)
 	return t
@@ -1042,9 +1051,9 @@ func (m *Member) String() string {
 	if m.IsFunctionMember() {
 		hdr = "FMbr"
 	}
-	return fmt.Sprintf("%s{%s type='%s' kind=%s access=%s offset=%d}",
+	return fmt.Sprintf("%s{%s type='%s' kind=%s access=%s offset=%d scope='%s'}",
 		hdr,
-		m.Name, m.Type, m.Kind.String(), m.Access.String(), m.Offset)
+		m.Name, m.Type, m.Kind.String(), m.Access.String(), m.Offset, m.Scope)
 }
 
 // NewFunctionType creates a new function type.
