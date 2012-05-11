@@ -2302,7 +2302,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			mbr := tmbr.(i_field)
 			members = append(members,
 				cxxtypes.NewMember(
-					name, //mbr.name(),
+					name,
 					mbr.typename(),
 					mbr.kind(),
 					mbr.access(),
