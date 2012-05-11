@@ -275,11 +275,12 @@ type %s interface {
 	// members
 	for i,mbr := range id.Members {
 		if !p.mbr_filter(&mbr) {
+			fmt.Printf(":: discarding [%s]...\n", mbr.Name)
 			continue
 		}
 		mid := cxxtypes.IdByName(mbr.Name)
 		if mid == nil {
-			fmt.Printf("==[%s]==\n", mbr.Name)
+			fmt.Printf("==[%s]==(idx=%d)\n", mbr.Name, i)
 			fmt.Printf("==dmbr: %v\n", mbr.IsDataMember())
 			fmt.Printf("==fmbr: %v\n", mbr.IsFunctionMember())
 			fmt.Printf("==embr: %v\n", mbr.IsEnumMember())
@@ -287,8 +288,11 @@ type %s interface {
 			fmt.Printf("==mdind: %v\n", mbr.IdKind())
 			return fmt.Errorf("cxxgo: could not retrieve identifier [%s]\n%s", mbr.Name, mbr)
 		}
-		fmt.Printf("--> [%s]...\n", id.Member(i))
-		fmt.Printf("<-- [%s]...\n", mid)
+		fmt.Printf("--> (%s)[%s]...\n", mbr.IdScopedName(), mbr)
+		err := p.wrapMember(&mbr)
+		if err != nil {
+			return err
+		}
 	}
 	fmter(bufs["go_iface"], "}\n\n")
 
@@ -337,7 +341,17 @@ func (p *plugin) wrapEnum(id *cxxtypes.EnumType) error {
 
 func (p *plugin) wrapMember(id *cxxtypes.Member) error {
 	fmt.Printf(":: wrapping member [%s]...\n", id.IdScopedName())
-
+	if id.IsDataMember() {
+		err := p.wrapDataMember(id)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := p.wrapFctMember(id)
+		if err != nil {
+			return err
+		}
+	}
 	fmt.Printf(":: wrapping member [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
@@ -371,6 +385,20 @@ func (p *plugin) wrapCvrQualType(id *cxxtypes.CvrQualType) error {
 }
 
 func (p *plugin) wrapBaseClass(id *cxxtypes.Base, bufs bufmap_t) error {
+	return nil
+}
+
+func (p *plugin) wrapDataMember(id *cxxtypes.Member) error {
+	fmt.Printf(":: wrapping data-member [%s]...\n", id.IdScopedName())
+	
+	fmt.Printf(":: wrapping data-member [%s]...[ok]\n", id.IdScopedName())
+	return nil
+}
+
+func (p *plugin) wrapFctMember(id *cxxtypes.Member) error {
+	fmt.Printf(":: wrapping fct-member [%s]...\n", id.IdScopedName())
+	
+	fmt.Printf(":: wrapping fct-member [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
@@ -439,11 +467,9 @@ func (p *plugin) mbr_filter(mbr *cxxtypes.Member) bool {
 		return false
 	}
 
-	// filter any non public method
+	// filter any non public member
 	if mbr.IsPrivate() || mbr.IsProtected() {
-		if mbr.IsFunctionMember() {
-			return false
-		}
+		return false
 	}
 
 	// filter any copy constructor with a private copy constructor in
