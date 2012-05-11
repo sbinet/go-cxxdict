@@ -706,7 +706,7 @@ func (t *StructType) Member(i int) *Member {
 func (t *StructType) SetMembers(mbrs []Member) error {
 	t.Members = make([]Member, len(mbrs))
 	copy(t.Members, mbrs)
-	err := set_scope(t.Members, t, t.Scope)
+	err := set_scope(t.Members, t, t.Name)
 	if err != nil {
 		return err
 	}
@@ -883,7 +883,7 @@ func (t *ClassType) Member(i int) *Member {
 func (t *ClassType) SetMembers(mbrs []Member) error {
 	t.Members = make([]Member, len(mbrs))
 	copy(t.Members, mbrs)
-	err := set_scope(t.Members, t, t.Scope)
+	err := set_scope(t.Members, t, t.Name)
 	if err != nil {
 		return err
 	}
@@ -952,6 +952,19 @@ func (b *Base) Type() Type {
 // IsVirtual returns whether the derivation is virtual
 func (b *Base) IsVirtual() bool {
 	return b.Virtual
+}
+
+// IsPublic returns whether the derivation is public
+func (b *Base) IsPublic() bool {
+	return (b.Access & AS_Public) != 0
+}
+
+func (b *Base) IsProtected() bool {
+	return (b.Access & AS_Protected) != 0
+}
+
+func (b *Base) IsPrivate() bool {
+	return (b.Access & AS_Private) != 0
 }
 
 func (b *Base) String() string {
