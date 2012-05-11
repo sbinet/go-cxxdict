@@ -277,7 +277,25 @@ func (x *xmlTree) gencxxtypes() error {
 		//fmt.Printf("%v\n", t)
 	}
 
+	for _, v := range x.Constructors {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
+	for _, v := range x.Converters {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
 	for _, v := range x.CvQualifiedTypes {
+		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
+		gen_id_from_gccxml(v)
+		//fmt.Printf("%v\n", t)
+	}
+
+	for _, v := range x.Destructors {
 		//fmt.Printf("\n%s... (%s) [%v]\n", v.name(), v.id(), genTypeName(v.id(), gtnCfg{}))
 		gen_id_from_gccxml(v)
 		//fmt.Printf("%v\n", t)
@@ -2393,7 +2411,6 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		scope := getCxxtypesScope(t)
 		params := gen_args(t.Arguments)
 		ret_type := "void" //FIXME ?
-		//ret_type := cxxtypes.IdByName("void").(cxxtypes.Type) //FIXME ?
 		ct = cxxtypes.NewFunction(
 			scoped_name,
 			qual,
