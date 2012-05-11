@@ -710,6 +710,12 @@ func (t *StructType) SetMembers(mbrs []Member) error {
 	if err != nil {
 		return err
 	}
+	for i,_ := range t.Members {
+		mbr := &t.Members[i]
+		if mbr.IsDataMember() {
+			add_id(mbr)
+		}
+	}
 	return nil
 }
 
@@ -887,6 +893,12 @@ func (t *ClassType) SetMembers(mbrs []Member) error {
 	if err != nil {
 		return err
 	}
+	for i,_ := range t.Members {
+		mbr := &t.Members[i]
+		if mbr.IsDataMember() {
+			add_id(mbr)
+		}
+	}
 	return nil
 }
 
@@ -977,11 +989,11 @@ func (b *Base) String() string {
 }
 
 // NewMember creates a new member for a struct, class, enum or union
-func NewMember(name string, tn string, kind TypeKind, access AccessSpecifier, offset uintptr, scope string) Member {
+func NewMember(name string, tn string, idkind IdKind, kind TypeKind, access AccessSpecifier, offset uintptr, scope string) Member {
 	mbr := Member{
 		BaseId: BaseId{
 			Name:  name,
-			Kind:  id_kind_from_tk(kind),
+			Kind:  idkind,
 			Scope: scope,
 		},
 		Type:   tn,
@@ -1006,16 +1018,16 @@ func (t *Member) get_type() Type {
 }
 
 func (m *Member) IsDataMember() bool {
-	return !m.IsFunctionMember() && !m.IsEnumMember()
+	return (m.IdKind() == IK_Var)
 }
 
 func (m *Member) IsEnumMember() bool {
-	return m.Kind == TK_Enum
+	return m.IsDataMember() && (m.Kind == TK_Enum)
 }
 
 func (m *Member) IsFunctionMember() bool {
 	return (m.Kind == TK_FunctionProto) ||
-		(m.Kind == TK_FunctionNoProto)
+	 	(m.Kind == TK_FunctionNoProto)
 }
 
 func id_kind_from_tk(tk TypeKind) IdKind {

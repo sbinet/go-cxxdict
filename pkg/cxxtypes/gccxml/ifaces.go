@@ -35,8 +35,14 @@ type i_kind interface {
 	kind() cxxtypes.TypeKind
 }
 
+type i_idkind interface {
+	i_id
+	idkind() cxxtypes.IdKind
+}
+
 type i_field interface {
 	i_name
+	idkind() cxxtypes.IdKind
 	kind() cxxtypes.TypeKind
 	typename() string
 	access() cxxtypes.AccessSpecifier

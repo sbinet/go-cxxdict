@@ -273,11 +273,20 @@ type %s interface {
 	}
 
 	// members
-	for i,_ := range id.Members {
-		if !p.mbr_filter(&id.Members[i]) {
+	for i,mbr := range id.Members {
+		if !p.mbr_filter(&mbr) {
 			continue
 		}
-		mid := cxxtypes.IdByName(id.Member(i).Name)
+		mid := cxxtypes.IdByName(mbr.Name)
+		if mid == nil {
+			fmt.Printf("==[%s]==\n", mbr.Name)
+			fmt.Printf("==dmbr: %v\n", mbr.IsDataMember())
+			fmt.Printf("==fmbr: %v\n", mbr.IsFunctionMember())
+			fmt.Printf("==embr: %v\n", mbr.IsEnumMember())
+			fmt.Printf("==mkind: %v\n", mbr.Kind)
+			fmt.Printf("==mdind: %v\n", mbr.IdKind())
+			return fmt.Errorf("cxxgo: could not retrieve identifier [%s]\n%s", mbr.Name, mbr)
+		}
 		fmt.Printf("--> [%s]...\n", id.Member(i))
 		fmt.Printf("<-- [%s]...\n", mid)
 	}

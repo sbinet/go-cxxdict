@@ -84,10 +84,12 @@ func (x *xmlTree) fixup() {
 
 	// classes and structs
 	for _, v := range x.Classes {
+		v.fixup_name() // side-effects into fixing empty names...
 		patchTemplateName(v)
 		v.Members = strings.TrimSpace(v.Members)
 	}
 	for _, v := range x.Structs {
+		v.fixup_name() // side-effects into fixing empty names...
 		patchTemplateName(v)
 		v.Members = strings.TrimSpace(v.Members)
 	}
@@ -230,6 +232,11 @@ func (x *xmlTree) fixup() {
 
 	// 	}
 	// }
+
+	// fields
+	for _, v := range x.Fields {
+		v.fixup_name()
+	}
 
 	// builtins
 	for _, v := range x.FundamentalTypes {
@@ -450,8 +457,16 @@ func (x *xmlArray) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_ConstantArray
 }
 
+func (x *xmlArray) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
+}
+
 func (x *xmlArray) size() uintptr {
 	return str_to_uintptr(x.Size)
+}
+
+func (x *xmlArray) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
 }
 
 type xmlBase struct {
@@ -491,6 +506,12 @@ func (x *xml_record) id() string {
 	return x.Id
 }
 
+func (x *xml_record) fixup_name() {
+	if x.Name == "" && x.Demangled != "" {
+		x.Name = x.Demangled
+	}
+}
+
 func (x *xml_record) name() string {
 	return x.Name
 }
@@ -521,6 +542,10 @@ func (x *xml_record) context() string {
 
 func (x *xml_record) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Record
+}
+
+func (x *xml_record) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xml_record) typename() string {
@@ -626,6 +651,10 @@ func (x *xmlConstructor) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlConstructor) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
+}
+
 func (x *xmlConstructor) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
 }
@@ -693,6 +722,10 @@ func (x *xmlConverter) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlConverter) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
+}
+
 func (x *xmlConverter) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
 }
@@ -725,6 +758,10 @@ func (x *xmlCvQualifiedType) name() string {
 	return t.(i_name).name()
 }
 
+func (x *xmlCvQualifiedType) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+}
+
 func (x *xmlCvQualifiedType) set_name(n string) {
 	panic("fixme: can set the name of a cv-qualified type - yet")
 }
@@ -737,6 +774,10 @@ func (x *xmlCvQualifiedType) context() string {
 func (x *xmlCvQualifiedType) kind() cxxtypes.TypeKind {
 	t := g_ids[x.Type]
 	return t.(i_kind).kind()
+}
+
+func (x *xmlCvQualifiedType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xmlCvQualifiedType) size() uintptr {
@@ -795,6 +836,10 @@ func (x *xmlDestructor) context() string {
 
 func (x *xmlDestructor) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
+}
+
+func (x *xmlDestructor) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
 }
 
 func (x *xmlDestructor) typename() string {
@@ -858,6 +903,10 @@ func (x *xmlEnumeration) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Enum
 }
 
+func (x *xmlEnumeration) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
+}
+
 func (x *xmlEnumeration) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
 }
@@ -895,6 +944,16 @@ func (x *xmlField) id() string {
 	return x.Id
 }
 
+func (x *xmlField) fixup_name() {
+	//TODO: figure out why we get such weirdos...
+	// ex: struct __vmi_class_type_info_pseudo1 
+	//     has a number of unnamed fields
+	if x.Name == "" && x.Demangled == "" {
+		x.Name = "__fake__name__"+x.Id+"__"
+		x.Demangled = x.Name
+	}
+}
+
 func (x *xmlField) name() string {
 	return x.Name
 }
@@ -926,6 +985,11 @@ func (x *xmlField) context() string {
 func (x *xmlField) kind() cxxtypes.TypeKind {
 	t := g_ids[x.Type]
 	return t.(i_kind).kind()
+}
+
+func (x *xmlField) idkind() cxxtypes.IdKind {
+	t := g_ids[x.Type]
+	return t.(i_idkind).idkind()
 }
 
 func (x *xmlField) typename() string {
@@ -988,6 +1052,10 @@ func (x *xmlFunction) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlFunction) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+}
+
 func (x *xmlFunction) mangled() string {
 	return x.Mangled
 }
@@ -1010,6 +1078,10 @@ func (x *xmlFunction) context() string {
 
 func (x *xmlFunction) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
+}
+
+func (x *xmlFunction) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
 }
 
 func (x xmlFunction) String() string {
@@ -1037,6 +1109,10 @@ func (x *xmlFunctionType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlFunctionType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
+}
+
 func (x *xmlFunctionType) name() string {
 	//FIXME - we should perhaps return "id-name (argtype...)"
 	return x.Id
@@ -1044,6 +1120,10 @@ func (x *xmlFunctionType) name() string {
 
 func (x *xmlFunctionType) set_name(n string) {
 	panic("cannot set name of a functiontype")
+}
+
+func (x *xmlFunctionType) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
 }
 
 func (x *xmlFunctionType) context() string {
@@ -1083,6 +1163,10 @@ func (x *xmlFundamentalType) context() string {
 
 func (x *xmlFundamentalType) kind() cxxtypes.TypeKind {
 	return g_n2tk[x.name()]
+}
+
+func (x *xmlFundamentalType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xmlFundamentalType) size() uintptr {
@@ -1149,6 +1233,10 @@ func (x *xmlMethod) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlMethod) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
+}
+
 func (x *xmlMethod) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
 }
@@ -1181,12 +1269,20 @@ func (x *xmlMethodType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlMethodType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
+}
+
 func (x *xmlMethodType) name() string {
 	return genTypeName(x.id(), gtnCfg{})
 }
 
 func (x *xmlMethodType) set_name(n string) {
 	panic("gccxml: cannot set name on MethodType")
+}
+
+func (x *xmlMethodType) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
 }
 
 type xmlNamespace struct {
@@ -1221,6 +1317,10 @@ func (x *xmlNamespace) set_mangled(n string) {
 
 func (x *xmlNamespace) demangled() string {
 	return x.Demangled
+}
+
+func (x *xmlNamespace) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
 }
 
 func (x *xmlNamespace) set_demangled(n string) {
@@ -1321,6 +1421,10 @@ func (x *xmlOperatorFunction) set_name(n string) {
 	x.Name = n
 }
 
+func (x *xmlOperatorFunction) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+}
+
 func (x *xmlOperatorFunction) mangled() string {
 	return x.Mangled
 }
@@ -1345,9 +1449,18 @@ func (x *xmlOperatorFunction) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_FunctionProto
 }
 
+func (x *xmlOperatorFunction) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
+}
+
 type xmlOperatorMethod struct {
 	xmlMethod
 }
+
+func (x *xmlOperatorMethod) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Fct
+}
+
 
 type xmlPointerType struct {
 	Align      string `xml:"align,attr"`
@@ -1375,6 +1488,10 @@ func (x *xmlPointerType) set_name(n string) {
 	panic("fixme: can set a name for a pointer-type - yet")
 }
 
+func (x *xmlPointerType) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+}
+
 func (x *xmlPointerType) context() string {
 	t := g_ids[x.Type]
 	return t.(i_context).context()
@@ -1382,6 +1499,10 @@ func (x *xmlPointerType) context() string {
 
 func (x *xmlPointerType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Ptr
+}
+
+func (x *xmlPointerType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xmlPointerType) size() uintptr {
@@ -1414,6 +1535,10 @@ func (x *xmlReferenceType) set_name(n string) {
 	panic("fixme: can set a name for a ref-type - yet")
 }
 
+func (x *xmlReferenceType) typename() string {
+	return genTypeName(x.Id, gtnCfg{})
+}
+
 func (x *xmlReferenceType) context() string {
 	t := g_ids[x.Type]
 	return t.(i_context).context()
@@ -1421,6 +1546,10 @@ func (x *xmlReferenceType) context() string {
 
 func (x *xmlReferenceType) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_LValueRef
+}
+
+func (x *xmlReferenceType) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xmlReferenceType) size() uintptr {
@@ -1465,6 +1594,10 @@ func (x *xmlTypedef) context() string {
 
 func (x *xmlTypedef) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Typedef
+}
+
+func (x *xmlTypedef) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
 }
 
 func (x *xmlTypedef) typename() string {
@@ -1552,6 +1685,10 @@ func (x *xmlUnion) kind() cxxtypes.TypeKind {
 	return cxxtypes.TK_Record
 }
 
+func (x *xmlUnion) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Typ
+}
+
 func (x *xmlUnion) typename() string {
 	return genTypeName(x.Id, gtnCfg{})
 }
@@ -1620,6 +1757,10 @@ func (x *xmlVariable) context() string {
 func (x *xmlVariable) kind() cxxtypes.TypeKind {
 	t := g_ids[x.Type]
 	return t.(i_kind).kind()
+}
+
+func (x *xmlVariable) idkind() cxxtypes.IdKind {
+	return cxxtypes.IK_Var
 }
 
 func (x *xmlVariable) typename() string {
@@ -2208,22 +2349,12 @@ func isUnnamedType(name string) bool {
 
 func genScopeName(id string, cfg gtnCfg) string {
 	s := ""
-	var node i_id
-	// climb the context tree up as long as the embedding context is unnamed
-	for {
-		node = g_ids[id]
-		t, ok := node.(i_context)
-		if ok {
-			id = t.context()
-			node = g_ids[id]
-			tn, ok := node.(i_name)
-			if ok && tn.name() != "" && strings.Index(tn.name(), ".") == -1 {
-				break
-			}
-		} else {
-			break
-		}
+	if t,ok := g_ids[id].(i_context); ok {
+		id = t.context()
+	} else {
+		panic("gccxml: no context for id="+id+"!!")
 	}
+
 	ns := ""
 	if id != "" {
 		ns = genTypeName(id, cfg)
@@ -2318,10 +2449,15 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			}
 			name := genTypeName(tmbr.id(), gtnCfg{})
 			mbr := tmbr.(i_field)
+			mbr_idkind := mbr.idkind()
+			if _, ok := tmbr.(*xmlField); ok{
+				mbr_idkind = cxxtypes.IK_Var
+			}
 			members = append(members,
 				cxxtypes.NewMember(
 					name,
 					mbr.typename(),
+					mbr_idkind,
 					mbr.kind(),
 					mbr.access(),
 					mbr.offset(),
@@ -2350,6 +2486,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 				cxxtypes.NewMember(
 					n,
 					typ,
+				cxxtypes.IK_Var,
 					cxxtypes.TK_Int,
 					cxxtypes.AS_Public,
 					uintptr(0),
