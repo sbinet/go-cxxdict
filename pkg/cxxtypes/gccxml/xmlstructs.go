@@ -143,6 +143,17 @@ func (x *xmlTree) fixup() {
 		}
 	}
 
+	// dtors
+	for _, v := range x.Destructors {
+		if len(v.name()) > 1 && string(v.name()[0]) != "~" {
+			v.set_name("~"+v.name())
+		}
+		if len(v.name()) >= 3 && string(v.name()[0:3]) != "_ZT" {
+			v.set_name(addTemplateToName(v.name(), v.demangled()))
+			patchTemplateName(v)
+		}
+	}
+
 	// methods
 	for _, v := range x.Methods {
 		if len(v.name()) >= 3 && string(v.name()[0:3]) != "_ZT" {
