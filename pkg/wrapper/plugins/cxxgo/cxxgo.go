@@ -63,8 +63,44 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 				break
 			}
 		}
+		if selected && is_anon(n) {
+			fmt.Printf(":: discarding [%s] (anonymous identifier)\n", n)
+			selected = false
+		}
 		if selected {
 			p.ids = append(p.ids, n)
+			nn := gen_go_name_from_id(cxxtypes.IdByName(n))
+			_cxx2go_typemap[n] = nn
+		}
+	}
+	{
+		// make sure we don't wrap a member twice: remove duplicates
+		nremoved := 0
+		for {
+			nremoved = 0
+			//fmt.Printf("---\n")
+			sel_ids := make([]string, 0, len(p.ids))
+			for _,n := range p.ids {
+				id := cxxtypes.IdByName(n)
+				if mbr,ok := id.(*cxxtypes.Member); ok {
+					pid := cxxtypes.IdByName(mbr.Scope)
+					if pid != nil && 
+						str_is_in_slice(pid.IdScopedName(), p.ids) {
+						// parent is already selected... discard member
+						nremoved += 1
+						//fmt.Printf("** discard [%s]\n", n)
+					} else {
+						// keep it
+						sel_ids = append(sel_ids, n)
+					}
+				} else {
+					sel_ids = append(sel_ids, n)
+				}
+			}
+			p.ids = sel_ids
+			if nremoved == 0 {
+				break
+			}
 		}
 	}
 	fmt.Printf("selected ids: %v\n", p.ids)
@@ -151,10 +187,12 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 			}
 
 		case *cxxtypes.Member:
-			err := p.wrapMember(id)
-			if err != nil {
-				return err
-			}
+			// will be done by a scope-level thingy...
+
+			// err := p.wrapMember(id)
+			// if err != nil {
+			// 	return err
+			// }
 
 		case *cxxtypes.TypedefType:
 			err := p.wrapTypedef(id)
@@ -220,12 +258,11 @@ func (p *plugin) wrapClass(id *cxxtypes.ClassType) (err error) {
 	fmt.Printf(":: wrapping class [%s]...\n", id.IdScopedName())
 	err = nil
 
-	bufs := bufmap_t{
-		"cxx_head": bytes.NewBufferString(""),
-		"cxx_body": bytes.NewBufferString(""),
-		"go_impl":  bytes.NewBufferString(""),
-		"go_iface": bytes.NewBufferString(""),
-	}
+	bufs := new_bufmap("cxx_head",
+		"cxx_body",
+		"go_impl",
+		"go_iface",
+	)
 
 	clf := "::" + id.IdScopedName()
 	clt := g_strtrans.Replace(id.IdScopedName())
@@ -272,10 +309,20 @@ type %s interface {
 		}
 	}
 
-	// members
-	for i,mbr := range id.Members {
+	fct_mbr_indices := make([]int, 0, len(id.Members))
+	fct_mbr_names := make([]string, 0, len(id.Members))
+	// data-members
+	for i, mbr := range id.Members {
 		if !p.mbr_filter(&mbr) {
 			fmt.Printf(":: discarding [%s]...\n", mbr.Name)
+			continue
+		}
+		if mbr.IsFunctionMember() {
+			//FIXME: O(n^2)
+			if !str_is_in_slice(mbr.Name, fct_mbr_names) {
+				fct_mbr_names = append(fct_mbr_names, mbr.Name)
+				fct_mbr_indices = append(fct_mbr_indices, i)
+			}
 			continue
 		}
 		mid := cxxtypes.IdByName(mbr.Name)
@@ -289,11 +336,21 @@ type %s interface {
 			return fmt.Errorf("cxxgo: could not retrieve identifier [%s]\n%s", mbr.Name, mbr)
 		}
 		fmt.Printf("--> (%s)[%s]...\n", mbr.IdScopedName(), mbr)
-		err := p.wrapMember(&mbr)
+		err := p.wrapMember(&mbr, bufs)
 		if err != nil {
 			return err
 		}
 	}
+
+	// fct-members: handle overloads...
+	for _, mbr_idx := range fct_mbr_indices {
+		mbr := &id.Members[mbr_idx]
+		err := p.wrapFctMember(mbr, bufs)
+		if err != nil {
+			return err
+		}
+	}
+
 	fmter(bufs["go_iface"], "}\n\n")
 
 	// commit buffers
@@ -333,21 +390,40 @@ func (p *plugin) wrapNamespace(id *cxxtypes.Namespace) error {
 }
 
 func (p *plugin) wrapEnum(id *cxxtypes.EnumType) error {
+	var err error = nil
 	fmt.Printf(":: wrapping enum [%s]...\n", id.IdScopedName())
 
+	n := "::" + id.IdScopedName()
+	//tn := g_strtrans.Replace(id.IdScopedName())
+	go_enum_iface_name := gen_go_name_from_id(id)
+
+	bufs := new_bufmap("cxx_head",
+		"go_iface",
+	)
+
+	fmter(bufs["go_iface"],
+		"\n// %s wraps the enum %s\n", go_enum_iface_name, n)
+	fmter(bufs["go_iface"], "type %s int\n", go_enum_iface_name)
+
+	// commit buffers
+	_, err = bufs["go_iface"].WriteTo(p.gen.Fd.Files["go"])
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf(":: wrapping enum [%s]...[ok]\n", id.IdScopedName())
-	return nil
+	return err
 }
 
-func (p *plugin) wrapMember(id *cxxtypes.Member) error {
+func (p *plugin) wrapMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	fmt.Printf(":: wrapping member [%s]...\n", id.IdScopedName())
 	if id.IsDataMember() {
-		err := p.wrapDataMember(id)
+		err := p.wrapDataMember(id, bufs)
 		if err != nil {
 			return err
 		}
-	} else {
-		err := p.wrapFctMember(id)
+	} else if id.IsFunctionMember() {
+		err := p.wrapFctMember(id, bufs)
 		if err != nil {
 			return err
 		}
@@ -388,16 +464,78 @@ func (p *plugin) wrapBaseClass(id *cxxtypes.Base, bufs bufmap_t) error {
 	return nil
 }
 
-func (p *plugin) wrapDataMember(id *cxxtypes.Member) error {
+func (p *plugin) wrapDataMember(id *cxxtypes.Member, bufs bufmap_t) (err error) {
 	fmt.Printf(":: wrapping data-member [%s]...\n", id.IdScopedName())
-	
+
+	dm_name := id.IdName()
+	dm_typename := id.Type
+
+	// declare getters and setters in the go-interface
+	fmter(bufs["go_iface"], "\tGet%s() %s\n\tSet%s(%s %s)\n",
+		strings.Title(dm_name),
+		cxx2go_typename(dm_typename),
+		strings.Title(dm_name),
+		dm_name,
+		cxx2go_typename(dm_typename),
+	)
+
+	clsid := cxxtypes.IdByName(id.Scope)
+	if clsid == nil {
+		return fmt.Errorf("could not find parent-scope [%s] for member [%s]",
+			id.Scope, id.IdScopedName())
+	}
+	//clf := "::" + clsid.IdScopedName()
+	//clt := g_strtrans.Replace(clsid.IdScopedName())
+	go_cls_iface_name := gen_go_name_from_id(clsid)
+	go_cls_impl_name := "Gocxxcptr" + go_cls_iface_name
+
+	// corresponding implementation...
+	fmter(bufs["go_impl"],
+	`
+func (p %s) Get%s() %s {
+ var dummy %s
+ return dummy
+}
+`,
+		go_cls_impl_name,
+		strings.Title(dm_name),
+		cxx2go_typename(dm_typename),
+		cxx2go_typename(dm_typename),
+	)
+
+	fmter(bufs["go_impl"],
+	`
+func (p %s) Set%s(arg %s) {
+}
+`,
+		go_cls_impl_name,
+		strings.Title(dm_name),
+		cxx2go_typename(dm_typename),
+	)
 	fmt.Printf(":: wrapping data-member [%s]...[ok]\n", id.IdScopedName())
-	return nil
+	return err
 }
 
-func (p *plugin) wrapFctMember(id *cxxtypes.Member) error {
+func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	fmt.Printf(":: wrapping fct-member [%s]...\n", id.IdScopedName())
-	
+	ovfct := cxxtypes.IdByName(id.Name).(*cxxtypes.OverloadFunctionSet)
+	ndargs := 0
+	dbg := false
+	if id.IdScopedName() == "Foo::setFoo" { dbg = true }
+	for i,_ := range ovfct.Fcts {
+		if ovfct.Function(i).NumDefaultParam() > 0 {
+			ndargs += 1
+		}
+		if dbg {
+			fmt.Printf("== ovfct[%d]...\n", i)
+			for ii,pp := range ovfct.Fcts[i].Params {
+				fmt.Printf("arg[%d]{%s, %s %v}\n", ii, pp.Name, pp.Type, pp.DefVal)
+			}
+		}
+		fmt.Printf(" --> [%s]\n", get_prototype(ovfct.Fcts[i]))
+	}
+	fmt.Printf("   #overloads: %d\n", ovfct.NumFunction())
+	fmt.Printf("   #dflt-args: %d\n", ndargs)
 	fmt.Printf(":: wrapping fct-member [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
@@ -409,8 +547,16 @@ func fmter(buf *bytes.Buffer, format string, args ...interface{}) (int, error) {
 	return buf.WriteString(o)
 }
 
-// cxx2go_typemap converts a C++ type string into its go equivalent
-func cxx2go_typemap(t string) string {
+func new_bufmap(keys ...string) bufmap_t {
+	bufs := make(bufmap_t, len(keys))
+	for _, k := range keys {
+		bufs[k] = bytes.NewBufferString("")
+	}
+	return bufs
+}
+
+// cxx2go_typename converts a C++ type string into its go equivalent
+func cxx2go_typename(t string) string {
 	if o, ok := _cxx2go_typemap[t]; ok {
 		return o
 	}
@@ -420,12 +566,17 @@ func cxx2go_typemap(t string) string {
 }
 
 // cxx2cgo_typemap converts a C++ type string into its cgo equivalent
-func cxx2cgo_typemap(t string) string {
-	return cxx2go_typemap(t)
+func cxx2cgo_typename(t string) string {
+	return cxx2go_typename(t)
 }
 
 func gen_go_name_from_id(id cxxtypes.Id) string {
 	n := id.IdScopedName()
+
+	// special cases
+	if _, ok := _cxx2go_typemap[n]; ok {
+		return cxx2go_typename(n)
+	}
 
 	switch id := id.(type) {
 
@@ -440,16 +591,11 @@ func gen_go_name_from_id(id cxxtypes.Id) string {
 		return gen_go_name_from_id(cxxtypes.IdByName(id.Type))
 	}
 
-	// special cases
-	if _, ok := _cxx2go_typemap[n]; ok {
-		return cxx2go_typemap(n)
-	}
-
 	// sanitize
 	o := g_cxxgo_trans.Replace(n)
 
 	if _, ok := _cxx2go_typemap[o]; ok {
-		return cxx2go_typemap(o)
+		return cxx2go_typename(o)
 	}
 	return o
 }
@@ -457,7 +603,7 @@ func gen_go_name_from_id(id cxxtypes.Id) string {
 func gen_go_name(cxxname string) string {
 	o := g_cxxgo_trans.Replace(cxxname)
 	if _, ok := _cxx2go_typemap[o]; ok {
-		return cxx2go_typemap(o)
+		return cxx2go_typename(o)
 	}
 	return o
 }
@@ -467,8 +613,13 @@ func (p *plugin) mbr_filter(mbr *cxxtypes.Member) bool {
 		return false
 	}
 
-	// filter any non public member
+	// filter out any non public member
 	if mbr.IsPrivate() || mbr.IsProtected() {
+		return false
+	}
+
+	// filter out any anonymous member
+	if n := mbr.Name; is_anon(n) {
 		return false
 	}
 
@@ -485,7 +636,6 @@ func (p *plugin) mbr_filter(mbr *cxxtypes.Member) bool {
 	// filter using the exclusion list in the selection file
 	// TODO
 
-	
 	return true
 }
 
@@ -549,6 +699,67 @@ func get_container_id(id cxxtypes.Id) (string, string) {
 	panic("unreachable")
 }
 
+// is_anon returns true if the given typename looks like an anonymous one
+func is_anon(n string) bool {
+	// ellipsis would screw us up...
+	nn := strings.Replace(n, "...", "", -1)
+	if strings.IndexAny(nn, ".$") != -1 {
+		return true
+	}
+	return false
+}
+
+func str_is_in_slice(s string, slice []string) bool {
+	for _, ss := range slice {
+		if s == ss {
+			return true
+		}
+	}
+	return false
+}
+
+func get_prototype(fct *cxxtypes.Function) string {
+	s := []string{}
+	if fct.IsInline() {
+		s = append(s, "inline ")
+	}
+	if fct.IsStatic() {
+		s = append(s, "static ")
+	}
+	//fixme: add fct qualifiers: const|static|inline
+	if !fct.IsConstructor() && !fct.IsDestructor() {
+		s = append(s, fct.ReturnType().TypeName(), " ")
+	}
+	s = append(s, fct.IdScopedName(), "(")
+	if len(fct.Params) > 0 {
+		for i, _ := range fct.Params {
+			s = append(s,
+				strings.TrimSpace(fct.Param(i).Type),
+				" ",
+				strings.TrimSpace(fct.Param(i).Name))
+			if i < len(fct.Params)-1 {
+				s = append(s, ", ")
+			}
+		}
+	} else {
+		// fixme: we should rather test if C XOR C++...
+		if fct.IsMethod() {
+			//nothing
+		} else {
+			s = append(s, "void")
+		}
+	}
+	if fct.IsVariadic() {
+		s = append(s, "...")
+	}
+	s = append(s, ") ")
+	if fct.IsConst() {
+		s = append(s, "const ")
+	}
+	return strings.TrimSpace(strings.Join(s, ""))
+}
+
+
 // globals ----------------------
 
 var g_strtrans *strings.Replacer = strings.NewReplacer(
@@ -586,7 +797,12 @@ package %s
 // #cgo LDFLAGS: -l%s
 import "C"
 import "unsafe"
- `
+
+// dummy function which uses unsafe
+func _gocxx_free_ptr(ptr unsafe.Pointer) {
+ C.free(ptr)
+}
+`
 
 var _cxx_hdr string = `
 // C includes
