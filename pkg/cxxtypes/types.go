@@ -710,7 +710,7 @@ func (t *StructType) SetMembers(mbrs []Member) error {
 	if err != nil {
 		return err
 	}
-	for i,_ := range t.Members {
+	for i, _ := range t.Members {
 		mbr := &t.Members[i]
 		if mbr.IsDataMember() {
 			add_id(mbr)
@@ -777,7 +777,7 @@ func NewEnumType(n string, members []Member, scope string) *EnumType {
 	set_scope(t.Members, t, parent_scope)
 
 	// add enum-members to the identifier-registry
-	for i,_ := range t.Members {
+	for i, _ := range t.Members {
 		add_id(&t.Members[i])
 	}
 
@@ -893,7 +893,7 @@ func (t *ClassType) SetMembers(mbrs []Member) error {
 	if err != nil {
 		return err
 	}
-	for i,_ := range t.Members {
+	for i, _ := range t.Members {
 		mbr := &t.Members[i]
 		if mbr.IsDataMember() {
 			add_id(mbr)
@@ -1027,7 +1027,7 @@ func (m *Member) IsEnumMember() bool {
 
 func (m *Member) IsFunctionMember() bool {
 	return (m.Kind == TK_FunctionProto) ||
-	 	(m.Kind == TK_FunctionNoProto)
+		(m.Kind == TK_FunctionNoProto)
 }
 
 func id_kind_from_tk(tk TypeKind) IdKind {

@@ -80,11 +80,11 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 			nremoved = 0
 			//fmt.Printf("---\n")
 			sel_ids := make([]string, 0, len(p.ids))
-			for _,n := range p.ids {
+			for _, n := range p.ids {
 				id := cxxtypes.IdByName(n)
-				if mbr,ok := id.(*cxxtypes.Member); ok {
+				if mbr, ok := id.(*cxxtypes.Member); ok {
 					pid := cxxtypes.IdByName(mbr.Scope)
-					if pid != nil && 
+					if pid != nil &&
 						str_is_in_slice(pid.IdScopedName(), p.ids) {
 						// parent is already selected... discard member
 						nremoved += 1
@@ -491,7 +491,7 @@ func (p *plugin) wrapDataMember(id *cxxtypes.Member, bufs bufmap_t) (err error) 
 
 	// corresponding implementation...
 	fmter(bufs["go_impl"],
-	`
+		`
 func (p %s) Get%s() %s {
  var dummy %s
  return dummy
@@ -504,7 +504,7 @@ func (p %s) Get%s() %s {
 	)
 
 	fmter(bufs["go_impl"],
-	`
+		`
 func (p %s) Set%s(arg %s) {
 }
 `,
@@ -521,14 +521,16 @@ func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	ovfct := cxxtypes.IdByName(id.Name).(*cxxtypes.OverloadFunctionSet)
 	ndargs := 0
 	dbg := false
-	if id.IdScopedName() == "Foo::setFoo" { dbg = true }
-	for i,_ := range ovfct.Fcts {
+	if id.IdScopedName() == "Foo::setFoo" {
+		dbg = true
+	}
+	for i, _ := range ovfct.Fcts {
 		if ovfct.Function(i).NumDefaultParam() > 0 {
 			ndargs += 1
 		}
 		if dbg {
 			fmt.Printf("== ovfct[%d]...\n", i)
-			for ii,pp := range ovfct.Fcts[i].Params {
+			for ii, pp := range ovfct.Fcts[i].Params {
 				fmt.Printf("arg[%d]{%s, %s %v}\n", ii, pp.Name, pp.Type, pp.DefVal)
 			}
 		}
@@ -758,7 +760,6 @@ func get_prototype(fct *cxxtypes.Function) string {
 	}
 	return strings.TrimSpace(strings.Join(s, ""))
 }
-
 
 // globals ----------------------
 
