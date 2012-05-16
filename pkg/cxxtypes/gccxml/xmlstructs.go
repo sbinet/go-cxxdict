@@ -391,14 +391,14 @@ func (x *xmlTree) id() string {
 type idDB map[string]i_id
 
 type xmlArgument struct {
-	Attributes string  `xml:"attributes,attr"`
-	File       string  `xml:"file,attr"`
-	Id         string  `xml:"id,attr"`
-	Line       string  `xml:"line,attr"`
-	Location   string  `xml:"location,attr"`
-	Name       string  `xml:"name,attr"`
-	Type       string  `xml:"type,attr"`
-	Default    *string `xml:"default,attr,omitempty"`
+	Attributes string `xml:"attributes,attr"`
+	File       string `xml:"file,attr"`
+	Id         string `xml:"id,attr"`
+	Line       string `xml:"line,attr"`
+	Location   string `xml:"location,attr"`
+	Name       string `xml:"name,attr"`
+	Type       string `xml:"type,attr"`
+	Default    string `xml:"default,attr"`
 }
 
 func (x *xmlArgument) id() string {
@@ -949,7 +949,7 @@ func (x *xmlField) fixup_name() {
 	// ex: struct __vmi_class_type_info_pseudo1 
 	//     has a number of unnamed fields
 	if x.Name == "" && x.Demangled == "" {
-		x.Name = "__fake__name__"+x.Id+"__"
+		x.Name = "__fake__name__" + x.Id + "__"
 		x.Demangled = x.Name
 	}
 }
@@ -1460,7 +1460,6 @@ type xmlOperatorMethod struct {
 func (x *xmlOperatorMethod) idkind() cxxtypes.IdKind {
 	return cxxtypes.IK_Fct
 }
-
 
 type xmlPointerType struct {
 	Align      string `xml:"align,attr"`
@@ -2349,10 +2348,10 @@ func isUnnamedType(name string) bool {
 
 func genScopeName(id string, cfg gtnCfg) string {
 	s := ""
-	if t,ok := g_ids[id].(i_context); ok {
+	if t, ok := g_ids[id].(i_context); ok {
 		id = t.context()
 	} else {
-		panic("gccxml: no context for id="+id+"!!")
+		panic("gccxml: no context for id=" + id + "!!")
 	}
 
 	ns := ""
@@ -2450,8 +2449,12 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			name := genTypeName(tmbr.id(), gtnCfg{})
 			mbr := tmbr.(i_field)
 			mbr_idkind := mbr.idkind()
-			if _, ok := tmbr.(*xmlField); ok{
+			if _, ok := tmbr.(*xmlField); ok {
 				mbr_idkind = cxxtypes.IK_Var
+			}
+			if name == "EnumNs::ESTLtype" {
+				fmt.Printf("++ [%s] tn=[%s], idkind=%v, tkind=%v scope=%s\n",
+					name, mbr.typename(), mbr_idkind, mbr.kind(), scope)
 			}
 			members = append(members,
 				cxxtypes.NewMember(
@@ -2486,7 +2489,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 				cxxtypes.NewMember(
 					n,
 					typ,
-				cxxtypes.IK_Var,
+					cxxtypes.IK_Var,
 					cxxtypes.TK_Int,
 					cxxtypes.AS_Public,
 					uintptr(0),
@@ -2503,7 +2506,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 			p := cxxtypes.NewParameter(
 				arg.Name,
 				tn,
-				arg.Default != nil,
+				arg.Default != "",
 			)
 			params = append(params, *p)
 		}
