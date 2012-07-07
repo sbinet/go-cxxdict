@@ -3,6 +3,7 @@
   <class pattern="T*"/>
   <function pattern="T*"/>
   <function pattern="Math*"/>
+  <function pattern="NS::*tmpl*"/>
 
   <class name="Foo"/>
   <class name="IFoo"/>

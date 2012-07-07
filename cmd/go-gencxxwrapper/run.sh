@@ -1,0 +1,1 @@
+touch CRoot_cxxgo.h; (cd ../../pkg/cxxtypes/gccxml && go install . && go test . && cd ../../../cmd/go-gencxxinfos && go install . && cd ../go-gencxxwrapper && /bin/rm -rf ids.db CRoot_cxxgo* && go install . && go-gencxxinfos -fname ./t.xml && go-gencxxwrapper -fname ./ids.db && go build CRoot_cxxgo.plugin.go) |& tee log 

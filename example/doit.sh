@@ -39,6 +39,7 @@ function gen_cxxdict() {
         --output mylib_cxxdict.cxx \
         --package mylibpkg \
         --fail_on_warnings \
+        --debug \
         --gccxmlopt=-m64 \
         -I${GOCXXDICTTESTROOT}/include \
         -DNDEBUG -D__REFLEX__ \
@@ -106,7 +107,7 @@ function run() {
 
     echo ":: done."
     echo ":::::::::::::::::::::::::::::::"
-    clean_up
+    #clean_up
     return 0
 }
 

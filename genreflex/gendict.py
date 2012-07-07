@@ -138,7 +138,8 @@ class genDictionary(object) :
     self.cppEnumSelect     = {}
     self.cppFunctionSelect = {}
     self.last_id    = ''
-    self.transtable = string.maketrans('<>&*,: ().$-[]', '__rp__s___dm__')
+    self.transtable = string.maketrans('<>&*,: ().$-[]',
+                                       '__rp__s___dm__')
     self.ignoremeth = ('rbegin', 'rend', '_Eq','_Lt', 'value_comp')
     self.x_id       = iter(xrange(sys.maxint))
     self.errors     = 0
@@ -902,20 +903,20 @@ class genDictionary(object) :
     f.write(ofds['go'].getvalue()) 
     f.close()
 
-    f = open('dump.xml','w')
-    f.write('=== keys ===\n')
-    f.write(str(self.xref.keys())+'\n')
-    f.write('=== items ===\n')
-    f.write(str(self.xref)+'\n')
-    f.close()
-
-    import cxxtypesystem as cxx_rtti
-    cxx_rtti._g_xref = self.xref
-    for t in cxx_rtti.builtin_types_itr():
-      #print "---",t
-      pass
+    # f = open('dump.xml','w')
+    # f.write('=== keys ===\n')
+    # f.write(str(self.xref.keys())+'\n')
+    # f.write('=== items ===\n')
+    # f.write(str(self.xref)+'\n')
+    # f.close()
 
     if 0:
+      import cxxtypesystem as cxx_rtti
+      cxx_rtti._g_xref = self.xref
+      for t in cxx_rtti.builtin_types_itr():
+        # print "---",t
+        pass
+
       for n in ('std::string',
                 'std::wstring',
                 'std::vector<int>',
@@ -1855,6 +1856,7 @@ class genDictionary(object) :
          .replace('>',  '_Sg_')\
          .replace(',',  '_Sc_')\
          .replace(' ',  '_')\
+         .replace('-',  'm')\
          .replace('::', '_')
     if o in _cxx2go_typemap:
       return cxx2go_typemap(o)
@@ -1867,6 +1869,7 @@ class genDictionary(object) :
          .replace('>',  '_Sg_')\
          .replace(',',  '_Sc_')\
          .replace(' ',  '_')\
+         .replace('-',  'm')\
          .replace('::', '_')
     if o in _cxx2go_typemap:
       return cxx2go_typemap(o)
@@ -2060,7 +2063,6 @@ class genDictionary(object) :
       if nid[-1] in ['c','v'] :
         nid = nid[:-1]
       cvdict = {'c':'const','v':'volatile'}
-      prdict = {'PointerType':'*', 'ReferenceType':'&'}
       nidelem = self.xref[nid]['elem']
       if nidelem in ('PointerType','ReferenceType') :
         if const : return self.genTypeName(nid, enum, False, colon)
