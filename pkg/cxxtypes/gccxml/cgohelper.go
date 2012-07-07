@@ -11,7 +11,7 @@ package gccxml
 import "C"
 
 import (
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
 )
 
 func gccxml_get_char_type() cxxtypes.TypeKind {

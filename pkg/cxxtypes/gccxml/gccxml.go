@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
 )
 
 // globals

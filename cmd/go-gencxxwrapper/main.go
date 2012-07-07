@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
-	"bitbucket.org/binet/go-cxxdict/pkg/wrapper"
-	_ "bitbucket.org/binet/go-cxxdict/pkg/wrapper/plugins/cxxgo"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/wrapper"
+	_ "github.com/sbinet/go-cxxdict/pkg/wrapper/plugins/cxxgo"
 )
 
 const dbg = 1

@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
-	"bitbucket.org/binet/go-cxxdict/pkg/wrapper"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/wrapper"
 )
 
 type bufmap_t map[string]*bytes.Buffer

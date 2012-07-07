@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
 )
 
 // helper function to "convert" a 0|1 string into a boolean

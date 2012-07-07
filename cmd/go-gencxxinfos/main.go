@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
-	_ "bitbucket.org/binet/go-cxxdict/pkg/cxxtypes/gccxml"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
+	_ "github.com/sbinet/go-cxxdict/pkg/cxxtypes/gccxml"
 )
 
 const dbg = 1

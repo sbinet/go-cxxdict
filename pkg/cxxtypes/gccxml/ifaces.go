@@ -1,7 +1,7 @@
 package gccxml
 
 import (
-	"bitbucket.org/binet/go-cxxdict/pkg/cxxtypes"
+	"github.com/sbinet/go-cxxdict/pkg/cxxtypes"
 )
 
 type i_id interface {
