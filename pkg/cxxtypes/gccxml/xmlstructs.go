@@ -391,6 +391,48 @@ func (x *xmlTree) gencxxtypes() error {
 		//fmt.Printf("%v\n", t)
 	}
 
+	// final fixups
+	for _, v := range cxxtypes.IdNames() {
+		iid, ok := cxxtypes.IdByName(v).(*cxxtypes.OverloadFunctionSet)
+		if !ok {
+			continue
+		}
+		// gccxml does not distinguish between Constructors and CopyConstructors
+		// do it now:
+		//  a copyctor is a ctor with only one argument
+		//  that argument should be of the type of the holding scope (class or
+		//  struct) once stripped off all its decorations (ptr,ref,const,..)
+		for ifct,_ := range iid.Fcts {
+			id := iid.Function(ifct)
+			if !id.IsConstructor() || id.IsCopyConstructor() {
+				continue
+			}
+			if len(id.Params) == 1 {
+				p := cxxtypes.IdByName(id.Params[0].Type).(cxxtypes.Type)
+				cc := true
+				for cc {
+					switch pp := p.(type) {
+					case *cxxtypes.RefType:
+						p = cxxtypes.IdByName(pp.UnderlyingType().TypeName()).(cxxtypes.Type)
+					case *cxxtypes.PtrType:
+						p = cxxtypes.IdByName(pp.UnderlyingType().TypeName()).(cxxtypes.Type)
+					case *cxxtypes.TypedefType:
+						p = cxxtypes.IdByName(pp.UnderlyingType().TypeName()).(cxxtypes.Type)
+					case *cxxtypes.CvrQualType:
+						p = cxxtypes.IdByName(pp.Type).(cxxtypes.Type)
+					default:
+						cc = false
+						break
+					}
+				}
+				scope_id := cxxtypes.IdByName(id.BaseId.Scope).IdScopedName()
+				param_id := cxxtypes.IdByName(p.TypeName()).IdScopedName()
+				if scope_id == param_id {
+					id.Spec |= cxxtypes.TS_CopyCtor
+				}
+			}
+		}
+	}
 	return nil
 }
 
