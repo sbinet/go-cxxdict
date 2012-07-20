@@ -43,7 +43,7 @@ func LoadIds(distillerName string, r io.Reader) error {
 // }
 
 // SaveIds dumps all cxxtypes.Id into the specified io.Writer
-func SaveIds(dst io.Writer) error {
+func SaveIds(dst io.Writer, metadata map[string]interface{}) error {
 
 	enc := gob.NewEncoder(dst)
 	if enc == nil {
@@ -61,6 +61,7 @@ func SaveIds(dst io.Writer) error {
 	}
 	d["Keys"] = keys
 	d["Content"] = vals
+	d["MetaData"] = metadata
 	return enc.Encode(d)
 }
 
@@ -115,9 +116,13 @@ func init() {
 	gob.Register(&OverloadFunctionSet{})
 	gob.Register(&Member{})
 
+	// register the metadata type with gob.
+	gob.Register(map[string]interface{}{})
+
 	// register the "default" distiller
 	RegisterDistiller("gob", &gobDistiller{})
 	//RegisterDistiller("default", &gobDistiller{})
+
 }
 
 // EOF

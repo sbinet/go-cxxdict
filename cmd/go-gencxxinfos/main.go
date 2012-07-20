@@ -15,6 +15,8 @@ const dbg = 1
 
 var fname *string = flag.String("fname", "", "gccxml file or clang file from which to distill identifiers")
 var oname *string = flag.String("o", "ids.db", "output file in which to store cxxinfos")
+var libname *string = flag.String("libname", "", "name of the C/C++ library we are providing cxxinfos for.")
+var hdrname *string = flag.String("hdrname", "", "name of the C/C++ header file holding declarations corresponding to the cxxinfos we are providing.")
 
 func main() {
 	fmt.Printf("== go-gencxxinfos ==\n")
@@ -32,7 +34,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if dbg == 1 {
+	if dbg == 0 {
 		{
 			names := []string{
 				"const char*",
@@ -132,7 +134,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = cxxtypes.SaveIds(dst)
+	metadata := map[string]interface{}{
+		"Library": *libname,
+		"Header":  *hdrname,
+	}
+
+	err = cxxtypes.SaveIds(dst, metadata)
 	if err != nil {
 		fmt.Printf("**err** %v\n", err)
 		os.Exit(1)

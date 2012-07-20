@@ -156,14 +156,17 @@ func (t *Namespace) Member(i int) Id {
 type Function struct {
 	BaseId   `cxxtypes:"function"`
 	Qual     TypeQualifier
-	Spec     TypeSpecifier // or'ed value of virtual/inline/...
-	Variadic bool          // whether this function is variadic
-	Params   []Parameter   // the parameters to this function
-	Ret      string        // return type of this function
+	Spec     TypeSpecifier   // or'ed value of virtual/inline/...
+	Access   AccessSpecifier // the access specifier for this function
+	Variadic bool            // whether this function is variadic
+	Params   []Parameter     // the parameters to this function
+	Ret      string          // return type of this function
 }
 
 // NewFunction returns a new function identifier
-func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier, variadic bool, params []Parameter, ret string, scope string) *Function {
+func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier,
+	access AccessSpecifier,
+	variadic bool, params []Parameter, ret string, scope string) *Function {
 	id := &Function{
 		BaseId: BaseId{
 			Name:  name,
@@ -172,6 +175,7 @@ func NewFunction(name string, qual TypeQualifier, specifiers TypeSpecifier, vari
 		},
 		Qual:     qual,
 		Spec:     specifiers,
+		Access:   access,
 		Variadic: variadic,
 		Params:   make([]Parameter, 0, len(params)),
 		Ret:      ret,
@@ -201,6 +205,18 @@ func (t *Function) Qualifiers() TypeQualifier {
 // Specifier returns the type specifier for this function
 func (t *Function) Specifier() TypeSpecifier {
 	return t.Spec
+}
+
+func (t *Function) IsPublic() bool {
+	return (t.Access & AS_Public) != 0
+}
+
+func (t *Function) IsProtected() bool {
+	return (t.Access & AS_Protected) != 0
+}
+
+func (t *Function) IsPrivate() bool {
+	return (t.Access & AS_Private) != 0
 }
 
 func (t *Function) IsConst() bool {

@@ -12,7 +12,7 @@ import (
 	_ "github.com/sbinet/go-cxxdict/pkg/wrapper/plugins/cxxgo"
 )
 
-const dbg = 1
+const dbg = 0
 
 var fname *string = flag.String("fname", "", "path to the cxxinfos registry file")
 
@@ -136,9 +136,9 @@ func main() {
 	}
 	fmt.Printf("wrapper...\n")
 	gen := wrapper.NewGenerator()
-	gen.Fd.Name = "CRoot"
-	gen.Fd.Package = "go_cxx_croot"
-	gen.Fd.Header = "croot/CRoot.h"
+	gen.Fd.Name = "mylib"
+	gen.Fd.Package = gen.Fd.Name
+	gen.Fd.Header = "mylib.hh"
 
 	err = gen.GenerateAllFiles()
 	if err != nil {
