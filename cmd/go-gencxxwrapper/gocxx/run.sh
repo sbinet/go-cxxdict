@@ -7,7 +7,6 @@ export GOCXXDICTROOT=${GOCXXPKGROOT}/cmd/go-gencxxwrapper/gocxx
 export GOCXXDICTTESTROOT=${GOCXXDICTROOT}/test
 export GOPATH=${GOCXXDICTTESTROOT}/go:${GOPATH}
 export LD_LIBRARY_PATH=${GOCXXDICTTESTROOT}/lib:${LD_LIBRARY_PATH}
-
 export LD_LIBRARY_PATH=`pwd`:$LD_LIBRARY_PATH
 export CGO_LDFLAGS=-L`pwd`
 
@@ -109,7 +108,7 @@ function test_go_pkg() {
 
     echo "####"
     cd $GOCXXDICTTESTROOT
-    go run ../gorun-test.go |& tee chk.log || return 1
+    go run ../gorun-test.go 2>&1 | tee chk.log || return 1
     echo "####"
 
     echo ":: checking ref.log..."
@@ -160,5 +159,5 @@ function run() {
     return 0
 }
 
-(run |& tee log) || exit 1
+(run 2>&1 | tee log) || exit 1
 
