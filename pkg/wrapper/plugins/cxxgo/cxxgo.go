@@ -603,22 +603,20 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		fct := cfct.f
 		nargs := fct.NumParam()
 
-		// discard private function-member
-		if fct.IsPrivate() {
-			continue
-		}
+		// // discard private function-member
+		// if fct.IsPrivate() {
+		// 	continue
+		// }
 
 		go_ret_type := ""
 		cid_args := make([]cxxgo_id, 0, nargs)
 
-		if needs_dispatch {
-			if _, ok := dispatch_table[nargs]; !ok {
-				dispatch_table[nargs] = []*cxxgo_function{&cfct}
-			} else {
-				dispatch_table[nargs] = append(
-					dispatch_table[nargs],
-					&cfct)
-			}
+		if _, ok := dispatch_table[nargs]; !ok {
+			dispatch_table[nargs] = []*cxxgo_function{&cfct}
+		} else {
+			dispatch_table[nargs] = append(
+				dispatch_table[nargs],
+				&cfct)
 		}
 
 		for i, _ := range fct.Params {
@@ -757,15 +755,24 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		}
 		if fct.IsMethod() {
 			cid_scope := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.BaseId.Scope))
-			if !fct.IsConstructor() {
+			if fct.IsConstructor() {
+				fmter(bufs["cxx_body"], "(*((void**)c_this)) = new ")
+			} else if fct.IsDestructor() {
+				fmter(bufs["cxx_head"],
+					"  %s *cxx_this = (%s*)(c_this);\n",
+					cid_scope.id.IdScopedName(),
+					cid_scope.id.IdScopedName(),
+					)
+				fmter(bufs["cxx_body"], 
+					"delete cxx_this; cxx_this = NULL;\n")
+
+			} else {
 				fmter(bufs["cxx_head"],
 					"  %s *cxx_this = (%s*)(c_this);\n",
 					cid_scope.id.IdScopedName(),
 					cid_scope.id.IdScopedName(),
 					)
 				fmter(bufs["cxx_body"], "cxx_this->")
-			} else {
-				fmter(bufs["cxx_body"], "(*((void**)c_this)) = new ")
 			}
 		}
 
@@ -815,11 +822,15 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 			}
 			cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 		}
-		fmter(bufs["cxx_body"],
-			"%s(%s);\n",
-			cid.id.IdName(),
-			strings.Join(cxx_in, ", "),
-		)
+		if !fct.IsDestructor() {
+			fmter(bufs["cxx_body"],
+				"%s(%s);\n",
+				cid.id.IdName(),
+				strings.Join(cxx_in, ", "),
+				)
+		} else {
+			// noop.
+		}
 		fmter(bufs["cxx_body"], "}\n")
 
 		// commit buffers
@@ -861,10 +872,14 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		} else {
 			go_ret = ""
 		}
-
+		cxx_protos := make([]string, 0, len(cgo_ovfct.fcts))
+		for i,_ := range cgo_ovfct.fcts {
+			cxx_protos = append(cxx_protos,
+				cgo_ovfct.fcts[i].cxx_prototype())
+		}
 		fmter(bufs["go_impl"],
-			"// dispatch for [%s]\nfunc %s%s {\n",
-			cgo_ovfct.cxx_prototype(),
+			"// dispatch for:\n//  %s\nfunc %s%s {\n",
+			strings.Join(cxx_protos, "\n//  "),
 			go_receiver,
 			cgo_ovfct.go_prototype(),
 		)
@@ -1044,6 +1059,12 @@ func (p *plugin) new_cxxgo_ovfct(ovfct *cxxtypes.OverloadFunctionSet) cxxgo_over
 	needs_dispatch := fctset_need_dispatch(ovfct)
 	for ifct, _ := range ovfct.Fcts {
 		fct := ovfct.Function(ifct)
+		if fct.IsPrivate() {
+			// discard from cxxgo-overload set
+			// FIXME: what about protected methods which are meant
+			//        to be implemented by, say, derived classes ?
+			continue
+		}
 		nargs := fct.NumParam()
 		ndargs := fct.NumDefaultParam()
 		imax := ndargs + 1
@@ -1562,16 +1583,15 @@ func str_is_in_slice(s string, slice []string) bool {
 }
 
 func fctset_need_dispatch(ovfct *cxxtypes.OverloadFunctionSet) bool {
-	if ovfct.NumFunction() > 1 {
-		return true
-	}
-
+	noverloads := 0
 	for i, _ := range ovfct.Fcts {
-		if ovfct.Function(i).NumDefaultParam() > 0 {
-			return true
+		f := ovfct.Function(i)
+		if f.IsPrivate() {
+			continue
 		}
+		noverloads += 1 + f.NumDefaultParam()
 	}
-	return false
+	return noverloads > 1
 }
 
 func get_dependent_ids(in_ids []string, id cxxtypes.Id) (dep_ids []string) {
