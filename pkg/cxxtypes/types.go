@@ -212,6 +212,9 @@ type Type interface {
 	// Qualifiers returns the or'ed values of qualifiers applied to this type.
 	Qualifiers() TypeQualifier
 
+	// Specifiers returns the or'ed values of specifiers applied to this type.
+	Specifiers() TypeSpecifier
+
 	// DeclScope returns the declaring scope of this type
 	DeclScope() Id
 
@@ -244,6 +247,12 @@ func IsVolatileQualified(t Type) bool {
 	return (t.Qualifiers() & TQ_Volatile) != 0
 }
 
+// IsAbstractType returns whether this type is abstract.
+func IsAbstractType(t Type) bool {
+	return (t.Specifiers() & TS_Abstract) != 0
+}
+
+
 // BaseType is the common implementation of most types.
 // It is embedded in other, public struct types, but always
 // with a unique tag like `cxxtypes:"array"` or `cxxtypes:"ptr"`
@@ -252,6 +261,7 @@ type BaseType struct {
 	Size  uintptr       // size in bytes
 	Kind  TypeKind      // the specific kind of this type
 	Qual  TypeQualifier // the qualifiers applied to this type
+	Spec  TypeSpecifier // the specifiers applied to this type
 	Scope string        // declaring scope of this type
 	Name  string        // the fully qualified name of the type
 	//canon Type          // the canonical type of this type
@@ -284,6 +294,10 @@ func (t *BaseType) TypeKind() TypeKind {
 
 func (t *BaseType) Qualifiers() TypeQualifier {
 	return t.Qual
+}
+
+func (t *BaseType) Specifiers() TypeSpecifier {
+	return t.Spec
 }
 
 func (t *BaseType) DeclScope() Id {
@@ -367,6 +381,13 @@ func (t *placeHolderType) Qualifiers() TypeQualifier {
 	return TQ_None
 }
 
+func (t *placeHolderType) Specifiers() TypeSpecifier {
+	if t.sync() {
+		return t.get_type().Specifiers()
+	}
+	return TS_None
+}
+
 func (t *placeHolderType) DeclScope() Id {
 	if t.sync() {
 		return t.get_type().DeclScope()
@@ -392,6 +413,7 @@ func NewFundamentalType(name string, size uintptr, kind TypeKind, scope string) 
 			Size:  size,
 			Kind:  kind,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  name,
 		},
@@ -458,6 +480,10 @@ func (t *CvrQualType) Qualifiers() TypeQualifier {
 	return t.Qual | t.get_type().Qualifiers()
 }
 
+func (t *CvrQualType) Specifiers() TypeSpecifier {
+	return t.get_type().Specifiers()
+}
+
 func (t *CvrQualType) DeclScope() Id {
 	return get_scope_from_name(t.Scope)
 }
@@ -516,6 +542,10 @@ func (t *PtrType) TypeKind() TypeKind {
 
 func (t *PtrType) Qualifiers() TypeQualifier {
 	return t.get_type().Qualifiers()
+}
+
+func (t *PtrType) Specifiers() TypeSpecifier {
+	return t.get_type().Specifiers()
 }
 
 func (t *PtrType) DeclScope() Id {
@@ -583,6 +613,10 @@ func (t *RefType) Qualifiers() TypeQualifier {
 	return t.get_type().Qualifiers()
 }
 
+func (t *RefType) Specifiers() TypeSpecifier {
+	return t.get_type().Specifiers()
+}
+
 func (t *RefType) DeclScope() Id {
 	return get_scope_from_name(t.Scope)
 }
@@ -604,6 +638,7 @@ func NewTypedefType(n string, tn string, tsz uintptr, scope string) *TypedefType
 			Size:  tsz,
 			Kind:  TK_Typedef,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  n,
 		},
@@ -635,6 +670,7 @@ func NewArrayType(sz uintptr, tn string, tsz uintptr, scope string) *ArrayType {
 			Size:  tsz * sz,
 			Kind:  TK_ConstantArray,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  tn + fmt.Sprintf("[%d]", sz),
 		},
@@ -669,6 +705,7 @@ func NewStructType(n string, sz uintptr, scope string) *StructType {
 			Size:  sz,
 			Kind:  TK_Record,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  n,
 		},
@@ -763,6 +800,7 @@ func NewEnumType(n string, members []Member, scope string) *EnumType {
 			Size:  sz,
 			Kind:  TK_Enum,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  n,
 		},
@@ -812,6 +850,7 @@ func NewUnionType(n string, members []Member, scope string) *UnionType {
 			Size:  0,
 			Kind:  TK_Record,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  n,
 		},
@@ -854,6 +893,7 @@ func NewClassType(n string, sz uintptr, scope string) *ClassType {
 			Size:  sz,
 			Kind:  TK_Record,
 			Qual:  TQ_None,
+			Spec:  TS_None,
 			Scope: scope,
 			Name:  n,
 		},
@@ -1088,10 +1128,10 @@ func NewFunctionType(n string, qual TypeQualifier, specifiers TypeSpecifier, var
 			Size:  0,
 			Kind:  TK_FunctionProto,
 			Qual:  qual,
+			Spec:  specifiers,
 			Scope: scope,
 			Name:  n,
 		},
-		Spec:     specifiers,
 		Variadic: variadic,
 		Params:   make([]Parameter, 0, len(params)),
 		Ret:      ret,
@@ -1107,7 +1147,6 @@ func NewFunctionType(n string, qual TypeQualifier, specifiers TypeSpecifier, var
 // FunctionType represents a C/C++ function, a member function, c-tor, ...
 type FunctionType struct {
 	BaseType `cxxtypes:"function"`
-	Spec     TypeSpecifier // or'ed value of virtual/inline/...
 	Variadic bool          // whether this function is variadic
 	Params   []Parameter   // the parameters to this function
 	Ret      string        // return type of this function
@@ -1115,43 +1154,43 @@ type FunctionType struct {
 
 // Specifier returns the type specifier for this function
 func (t *FunctionType) Specifier() TypeSpecifier {
-	return t.Spec
+	return t.BaseType.Spec
 }
 
 func (t *FunctionType) IsVirtual() bool {
-	return (t.Spec & TS_Virtual) != 0
+	return (t.BaseType.Spec & TS_Virtual) != 0
 }
 
 func (t *FunctionType) IsStatic() bool {
-	return (t.Spec & TS_Static) != 0
+	return (t.BaseType.Spec & TS_Static) != 0
 }
 
 func (t *FunctionType) IsConstructor() bool {
-	return (t.Spec & TS_Constructor) != 0
+	return (t.BaseType.Spec & TS_Constructor) != 0
 }
 
 func (t *FunctionType) IsDestructor() bool {
-	return (t.Spec & TS_Destructor) != 0
+	return (t.BaseType.Spec & TS_Destructor) != 0
 }
 
 func (t *FunctionType) IsCopyConstructor() bool {
-	return (t.Spec & TS_CopyCtor) != 0
+	return (t.BaseType.Spec & TS_CopyCtor) != 0
 }
 
 func (t *FunctionType) IsOperator() bool {
-	return (t.Spec & TS_Operator) != 0
+	return (t.BaseType.Spec & TS_Operator) != 0
 }
 
 func (t *FunctionType) IsMethod() bool {
-	return (t.Spec & TS_Method) != 0
+	return (t.BaseType.Spec & TS_Method) != 0
 }
 
 func (t *FunctionType) IsInline() bool {
-	return (t.Spec & TS_Inline) != 0
+	return (t.BaseType.Spec & TS_Inline) != 0
 }
 
 func (t *FunctionType) IsConverter() bool {
-	return (t.Spec & TS_Converter) != 0
+	return (t.BaseType.Spec & TS_Converter) != 0
 }
 
 // IsVariadic returns whether this function is variadic
@@ -1236,21 +1275,17 @@ type TypeSpecifier uintptr
 const (
 	TS_None     TypeSpecifier = 0
 	TS_Register TypeSpecifier = 1 << iota
-
 	TS_Virtual
 	TS_Static
 	TS_Inline
 	TS_Extern
-
 	TS_Constructor
 	TS_Destructor
 	TS_CopyCtor
 	TS_Operator
 	TS_Converter
 	TS_Method
-
 	TS_Explicit
-
 	TS_Auto
 	TS_Mutable
 	TS_Abstract

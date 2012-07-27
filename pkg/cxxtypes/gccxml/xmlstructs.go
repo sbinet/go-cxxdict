@@ -609,6 +609,14 @@ func (x *xml_record) access() cxxtypes.AccessSpecifier {
 	return str_to_access(x.Access)
 }
 
+func (x *xml_record) specifiers() cxxtypes.TypeSpecifier {
+	ts := cxxtypes.TS_None
+	if str_to_bool(x.Abstract) {
+		ts |= cxxtypes.TS_Abstract
+	}
+	return ts
+}
+
 func (x *xml_record) offset() uintptr {
 	return 0
 }
@@ -2758,6 +2766,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		//
 		st.SetMembers(gen_mbrs(t.Members, scoped_name))
 		st.SetBases(gen_bases(t.Bases))
+		st.BaseType.Spec = t.specifiers()
 		ct = st
 
 	case *xmlClass:
@@ -2771,6 +2780,7 @@ func gen_id_from_gccxml(node i_id) cxxtypes.Id {
 		//
 		st.SetMembers(gen_mbrs(t.Members, scoped_name))
 		st.SetBases(gen_bases(t.Bases))
+		st.BaseType.Spec = t.specifiers()
 		ct = st
 
 	case *xmlMethod:

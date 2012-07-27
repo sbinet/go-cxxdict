@@ -38,6 +38,7 @@ func (p *plugin) Init(g *wrapper.Generator) error {
 		"NS*",
 		"TT*",
 		"Base*",
+		"D1",
 		"IAlg",
 		"App",
 		"Alg*",
@@ -367,6 +368,17 @@ type %s interface {
 				"return Gocxxcptr%s(p.Gocxxcptr())\n}\n",
 				go_base_cls_iface_name,
 				)
+
+			
+			fmter(bufs["go_iface"],
+				"\tGocxxIs%s()\n",
+				go_base_cls_iface_name,
+				)
+			fmter(bufs["go_impl"],
+				"func (p %s) GocxxIs%s() {\n}\n",
+				go_cls_impl_name,
+				go_base_cls_iface_name,
+				)
 		}
 	}
 
@@ -603,14 +615,16 @@ func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	}
 		
 	cgo_ovfct := p.new_cxxgo_ovfct(ovfct)
-	fct := cgo_ovfct.fcts[0].f
-	if !fct.IsConstructor() &&
-		!fct.IsDestructor() &&
-		!fct.IsCopyConstructor() {
-		fmter(bufs["go_iface"],
-			"\t%s\n",
-			cgo_ovfct.go_prototype(),
-			)
+	if len(cgo_ovfct.fcts) > 0 {
+		fct := cgo_ovfct.fcts[0].f
+		if !fct.IsConstructor() &&
+			!fct.IsDestructor() &&
+			!fct.IsCopyConstructor() {
+			fmter(bufs["go_iface"],
+				"\t%s\n",
+				cgo_ovfct.go_prototype(),
+				)
+		}
 	}
 
 	err = p.wrapFunction(cid, ovfct)
@@ -689,8 +703,24 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			cfct.go_prototype(),
 		)
 
+
+		// CGo decl.
 		cgo_in := []string{}
 		cgo_out := []string{}
+
+		fmter(bufs["cgo_head"],
+			"\n/* wraps [%s] */\n%s;\n",
+			cfct.cxx_prototype(),
+			cfct.cgo_prototype(),
+		)
+
+		// C++ wrapper
+		cxx_in := []string{}
+		fmter(
+			bufs["cxx_head"], "\n// wraps [%s]\n%s\n{\n",
+			cfct.cxx_prototype(),
+			cfct.cgo_prototype(),
+		)
 
 		if fct.IsMethod() {
 			cid_scope := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.BaseId.Scope))
@@ -785,42 +815,59 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 		)
 		fmter(bufs["go_impl"], "}\n")
 
-		// CGo decl.
-
-		fmter(bufs["cgo_head"],
-			"\n/* wraps [%s] */\n%s;\n",
-			cfct.cxx_prototype(),
-			cfct.cgo_prototype(),
-		)
-
-		// C++ wrapper
-		cxx_in := []string{}
-		fmter(
-			bufs["cxx_head"], "\n// wraps [%s]\n%s\n{\n",
-			cfct.cxx_prototype(),
-			cfct.cgo_prototype(),
-		)
-
-		// if (strings.HasSuffix(go_ret_type, "*") ||
-		// 	strings.HasSuffix(go_ret_type, ")") ) && 
-		// 	!strings.Contains(go_ret_type, "::*") {
-		// 	fmter(bufs["cxx_head"],
-		// 		"  void *cxx_retaddr = (void**)"
-		// } 
 		if go_ret_type != "" {
 			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
-			if cid_ret.is_string_like() {
-				fmter(bufs["cxx_head"], "FIXME",
-					)
+			cxx_type := cid_ret.id.IdScopedName()
+			if strings.HasSuffix(cxx_type, "*")  {
+				// pointer to data member
+				if strings.HasSuffix(cxx_type, ":*") {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = (%s*)(c_ret);\n",
+						cxx_type, cxx_type,
+						)
+				} else if cid_ret.is_string_like() {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
+						cxx_type[:len(cxx_type)-1],
+						)
+				} else if cid_ret.is_cstring_like() {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = (%s*)c_ret;\n",
+						cxx_type, cxx_type,
+						)
+				} else {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_ret = (%s)(c_ret);\n",
+						cxx_type, cxx_type,
+						)
+				}
+			} else if strings.HasSuffix(cxx_type, "&") {
+				if cid_ret.is_string_like() {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
+						cxx_type[:len(cxx_type)-1],
+						)
+				} else {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = *(%s**)(&c_ret);\n",
+						cxx_type[:len(cxx_type)-1],
+						cxx_type[:len(cxx_type)-1],
+						)
+				}
 			} else {
-				fmter(bufs["cxx_head"],
-					"  %s *cxx_ret = (%s*)(c_ret);\n",
-					cid_ret.id.IdScopedName(),
-					cid_ret.id.IdScopedName(),
-					//cxxtypes.IdByName(cid_ret.id.Type).IdScopedName(),
-					)
-				fmter(bufs["cxx_body"], "  (*cxx_ret) = ")
+				if cid_ret.is_string_like() {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
+						cxx_type[:len(cxx_type)-1],
+						)
+				} else {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = (%s*)c_ret;\n",
+						cxx_type, cxx_type,
+						)
+				}
 			}
+			fmter(bufs["cxx_body"], "  (*cxx_ret) = ")
 		} else {
 			fmter(bufs["cxx_body"], "  ")
 		}
@@ -1054,29 +1101,23 @@ type cxxgo_id struct {
 }
 
 func (cid *cxxgo_id) is_class_like() bool {
-	switch id := cid.id.(type) {
-	case *cxxtypes.ClassType:
-		return true
-	case *cxxtypes.PtrType:
-		pid := id.UnderlyingType().(cxxtypes.Id)
-		switch pid.(type) {
-		case *cxxtypes.ClassType:
-			// for a class, the go-type is an interface...
-			// having a pointer to an interface isn't really go-ish
+	id := cid.id
+	for {
+		switch iid := id.(type) {
+		case *cxxtypes.ClassType, *cxxtypes.StructType:
 			return true
+		case *cxxtypes.CvrQualType:
+			id = cxxtypes.IdByName(iid.Type).(cxxtypes.Id)
+			continue
+		case *cxxtypes.PtrType:
+			id = iid.UnderlyingType().(cxxtypes.Id)
+			continue
+		case *cxxtypes.RefType:
+			id = iid.UnderlyingType().(cxxtypes.Id)
+			continue
+		default:
+			return false
 		}
-		return false
-	case *cxxtypes.RefType:
-		pid := id.UnderlyingType().(cxxtypes.Id)
-		switch pid.(type) {
-		case *cxxtypes.ClassType:
-			// for a class, the go-type is an interface...
-			// having a pointer to an interface isn't really go-ish
-			return true
-		}
-		return false
-	default:
-		return false
 	}
 	panic("unreachable")
 }
@@ -1183,6 +1224,13 @@ func (p *plugin) new_cxxgo_ovfct(ovfct *cxxtypes.OverloadFunctionSet) cxxgo_over
 			// FIXME: what about protected methods which are meant
 			//        to be implemented by, say, derived classes ?
 			continue
+		}
+		if fct.IsMethod() && fct.IsConstructor() {
+			// discard if class is abstract...
+			scope_id, ok := cxxtypes.IdByName(fct.BaseId.Scope).(cxxtypes.Type)
+			if ok && cxxtypes.IsAbstractType(scope_id) {
+				continue
+			}
 		}
 		nargs := fct.NumParam()
 		ndargs := fct.NumDefaultParam()
@@ -1715,6 +1763,13 @@ func fctset_need_dispatch(ovfct *cxxtypes.OverloadFunctionSet) bool {
 		f := ovfct.Function(i)
 		if f.IsPrivate() {
 			continue
+		}
+		if f.IsMethod() && f.IsConstructor() {
+			// discard if class is abstract...
+			scope_id, ok := cxxtypes.IdByName(f.BaseId.Scope).(cxxtypes.Type)
+			if ok && cxxtypes.IsAbstractType(scope_id) {
+				continue
+			}
 		}
 		noverloads += 1 + f.NumDefaultParam()
 	}

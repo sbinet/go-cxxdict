@@ -16,18 +16,19 @@ SCRIPT=`$readlink -f $0`
 # Absolute path this script is in, thus /home/user/bin
 SCRIPTPATH=`dirname $SCRIPT`
 
-tests="basics cxx-oop"
+tests="basics cxx-classes cxx-stl cxx-oop"
 
 function run() {
     cd $SCRIPTPATH
     echo ":: tests: $tests"
     for t in $tests
     do
-        cd $t
-        echo ":: running test [$t]..."
-        ./run.sh >& /dev/null || exit 1
-        echo ":: running test [$t]...[ok]"
-        cd ..
+	echo ":: running test [$t]..."
+        (cd $t &&            
+            (./run.sh >& /dev/null || exit 1) &&
+            echo ":: running test [$t]...[ok]" &&
+            cd ..) || \
+            echo ":: running test [$t]...[err]"
     done;
 }
 
