@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	
+
 	fmt.Printf("mylib.Add42(100)= %v\n",
 		mylib.Add42(100))
 

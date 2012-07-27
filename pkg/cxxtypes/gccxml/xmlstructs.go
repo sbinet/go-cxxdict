@@ -402,7 +402,7 @@ func (x *xmlTree) gencxxtypes() error {
 		//  a copyctor is a ctor with only one argument
 		//  that argument should be of the type of the holding scope (class or
 		//  struct) once stripped off all its decorations (ptr,ref,const,..)
-		for ifct,_ := range iid.Fcts {
+		for ifct, _ := range iid.Fcts {
 			id := iid.Function(ifct)
 			if !id.IsConstructor() || id.IsCopyConstructor() {
 				continue

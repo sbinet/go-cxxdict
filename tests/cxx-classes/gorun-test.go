@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	
+
 	fmt.Printf("mylib.NewD1(\"d1\")...\n")
 	d1 := mylib.NewD1("d1")
 	fmt.Printf("mylib.NewD1(\"d1\")...[ok]\n")
@@ -39,7 +39,7 @@ func main() {
 	b.Pure_virtual_method("you")
 
 	fmt.Printf("call d1 methods via mylib.Base...[done]\n")
-	
+
 	mylib.DeleteD1(d1)
 
 	fmt.Printf("mylib.NewD1(\"d2\")...\n")
@@ -49,5 +49,5 @@ func main() {
 	fmt.Printf("delete d2 via ~Base...\n")
 	mylib.DeleteBase(d2)
 	fmt.Printf("delete d2 via ~Base...[ok]\n")
-	
+
 }

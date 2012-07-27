@@ -10,12 +10,12 @@ import (
 
 func main() {
 
-	ids := []int{0,1,2,3,4}
+	ids := []int{0, 1, 2, 3, 4}
 	fmt.Printf("mylib.NewApp()...\n")
 	app := mylib.NewApp()
 	fmt.Printf("mylib.NewApp()... [ok]\n")
 
-	for _,id := range ids {
+	for _, id := range ids {
 		n := fmt.Sprintf("alg_%d", id)
 		fmt.Printf("mylib.NewAlg(\"%s\")...\n", n)
 		alg := mylib.NewAlg(n)
@@ -28,7 +28,7 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("adding alg to app...[ok]\n")
-		
+
 	}
 
 	fmt.Printf("running app...\n")
@@ -39,7 +39,6 @@ func main() {
 	}
 	fmt.Printf("running app...[ok]\n")
 
-	
 	fmt.Printf("deleting app...\n")
 	mylib.DeleteApp(app)
 	fmt.Printf("deleting app...[ok]\n")

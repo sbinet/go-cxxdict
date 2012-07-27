@@ -252,7 +252,6 @@ func IsAbstractType(t Type) bool {
 	return (t.Specifiers() & TS_Abstract) != 0
 }
 
-
 // BaseType is the common implementation of most types.
 // It is embedded in other, public struct types, but always
 // with a unique tag like `cxxtypes:"array"` or `cxxtypes:"ptr"`
@@ -1147,9 +1146,9 @@ func NewFunctionType(n string, qual TypeQualifier, specifiers TypeSpecifier, var
 // FunctionType represents a C/C++ function, a member function, c-tor, ...
 type FunctionType struct {
 	BaseType `cxxtypes:"function"`
-	Variadic bool          // whether this function is variadic
-	Params   []Parameter   // the parameters to this function
-	Ret      string        // return type of this function
+	Variadic bool        // whether this function is variadic
+	Params   []Parameter // the parameters to this function
+	Ret      string      // return type of this function
 }
 
 // Specifier returns the type specifier for this function

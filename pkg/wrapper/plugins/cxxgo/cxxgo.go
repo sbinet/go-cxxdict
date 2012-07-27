@@ -329,12 +329,12 @@ type %s interface {
 	fmter(bufs["go_impl"],
 		"func (p %s) Gocxxcptr() uintptr {\n\treturn uintptr(p)\n}\n",
 		go_cls_impl_name,
-		)
+	)
 	fmter(bufs["go_impl"],
 		"func (p %s) GocxxIs%s() {\n}\n",
 		go_cls_impl_name,
 		cid.goname,
-		)
+	)
 
 	// bases...
 	bufs_bases := make([]bufmap_t, 0, len(id.Bases))
@@ -363,22 +363,21 @@ type %s interface {
 				go_cls_impl_name,
 				go_base_cls_iface_name,
 				go_base_cls_iface_name,
-				)
+			)
 			fmter(bufs["go_impl"],
 				"return Gocxxcptr%s(p.Gocxxcptr())\n}\n",
 				go_base_cls_iface_name,
-				)
+			)
 
-			
 			fmter(bufs["go_iface"],
 				"\tGocxxIs%s()\n",
 				go_base_cls_iface_name,
-				)
+			)
 			fmter(bufs["go_impl"],
 				"func (p %s) GocxxIs%s() {\n}\n",
 				go_cls_impl_name,
 				go_base_cls_iface_name,
-				)
+			)
 		}
 	}
 
@@ -609,11 +608,11 @@ func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	ovfct := cxxtypes.IdByName(id.Name).(*cxxtypes.OverloadFunctionSet)
 	cid := get_cxxgo_id(p.gen.Fd.Package, ovfct)
 	if cid.wrapped {
-		fmt.Printf(":: wrapping fct-member [%s]...[already-wrapped]\n", 
+		fmt.Printf(":: wrapping fct-member [%s]...[already-wrapped]\n",
 			id.IdScopedName())
 		return err
 	}
-		
+
 	cgo_ovfct := p.new_cxxgo_ovfct(ovfct)
 	if len(cgo_ovfct.fcts) > 0 {
 		fct := cgo_ovfct.fcts[0].f
@@ -623,7 +622,7 @@ func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 			fmter(bufs["go_iface"],
 				"\t%s\n",
 				cgo_ovfct.go_prototype(),
-				)
+			)
 		}
 	}
 
@@ -639,7 +638,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 	ovfct := id
 	var err error = nil
 	if cid.wrapped {
-		fmt.Printf(":: wrapping fct [%s]... [already wrapped]\n", 
+		fmt.Printf(":: wrapping fct [%s]... [already wrapped]\n",
 			id.IdScopedName())
 		return err
 	}
@@ -703,7 +702,6 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			cfct.go_prototype(),
 		)
 
-
 		// CGo decl.
 		cgo_in := []string{}
 		cgo_out := []string{}
@@ -746,24 +744,24 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 		if fct.Ret != "" && fct.Ret != "void" {
 			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
 			if cid_ret.is_cstring_like() {
-				fmter(bufs["go_impl"], 
+				fmter(bufs["go_impl"],
 					"\tc_ret := C.CString(\"\")\n")
-				fmter(bufs["go_impl"], 
+				fmter(bufs["go_impl"],
 					"\tdefer C.free(unsafe.Pointer(c_ret))\n")
 				cgo_out = append(cgo_out,
 					"\tgo_ret := C.GoString(c_ret)\n",
 					"\treturn go_ret\n",
-					)
-				
+				)
+
 			} else {
 				fmter(bufs["go_impl"],
 					"\tvar c_ret C.%s\n",
 					cid_ret.cgoname,
-					)
+				)
 				cgo_out = append(cgo_out,
 					fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
 					"\treturn go_ret\n",
-					)
+				)
 			}
 			go_ret_type = fct.Ret
 
@@ -771,7 +769,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			if fct.IsConstructor() {
 				cgo_out = append(cgo_out,
 					"\treturn c_ptr\n",
-					)
+				)
 			}
 			fmter(bufs["go_impl"],
 				"\tvar c_ret = unsafe.Pointer(nil)\n",
@@ -782,9 +780,9 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 		for i, _ := range fct.Params {
 			cid_arg := cid_args[i]
 			if cid_arg.is_cstring_like() {
-				fmter(bufs["go_impl"], 
+				fmter(bufs["go_impl"],
 					"\tc_arg_%d := C.CString(arg_%d)\n", i, i)
-				fmter(bufs["go_impl"], 
+				fmter(bufs["go_impl"],
 					"\tdefer C.free(unsafe.Pointer(c_arg_%d))\n", i)
 				cgo_in = append(cgo_in,
 					fmt.Sprintf("unsafe.Pointer(c_arg_%d)", i))
@@ -793,7 +791,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					"\tc_arg_%d := unsafe.Pointer(arg_%d.Gocxxcptr())\n",
 					i,
 					i,
-					)
+				)
 				cgo_in = append(cgo_in,
 					fmt.Sprintf("c_arg_%d", i))
 			} else {
@@ -802,7 +800,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					i,
 					cid_arg.cgoname,
 					i,
-					)
+				)
 				cgo_in = append(cgo_in,
 					fmt.Sprintf("unsafe.Pointer(&c_arg_%d)", i))
 			}
@@ -818,53 +816,53 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 		if go_ret_type != "" {
 			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
 			cxx_type := cid_ret.id.IdScopedName()
-			if strings.HasSuffix(cxx_type, "*")  {
+			if strings.HasSuffix(cxx_type, "*") {
 				// pointer to data member
 				if strings.HasSuffix(cxx_type, ":*") {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = (%s*)(c_ret);\n",
 						cxx_type, cxx_type,
-						)
+					)
 				} else if cid_ret.is_string_like() {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
 						cxx_type[:len(cxx_type)-1],
-						)
+					)
 				} else if cid_ret.is_cstring_like() {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = (%s*)c_ret;\n",
 						cxx_type, cxx_type,
-						)
+					)
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_ret = (%s)(c_ret);\n",
 						cxx_type, cxx_type,
-						)
+					)
 				}
 			} else if strings.HasSuffix(cxx_type, "&") {
 				if cid_ret.is_string_like() {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
 						cxx_type[:len(cxx_type)-1],
-						)
+					)
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = *(%s**)(&c_ret);\n",
 						cxx_type[:len(cxx_type)-1],
 						cxx_type[:len(cxx_type)-1],
-						)
+					)
 				}
 			} else {
 				if cid_ret.is_string_like() {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
 						cxx_type[:len(cxx_type)-1],
-						)
+					)
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = (%s*)c_ret;\n",
 						cxx_type, cxx_type,
-						)
+					)
 				}
 			}
 			fmter(bufs["cxx_body"], "  (*cxx_ret) = ")
@@ -880,8 +878,8 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					"  %s *cxx_this = (%s*)(c_this);\n",
 					cid_scope.id.IdScopedName(),
 					cid_scope.id.IdScopedName(),
-					)
-				fmter(bufs["cxx_body"], 
+				)
+				fmter(bufs["cxx_body"],
 					"delete cxx_this; cxx_this = NULL;\n")
 
 			} else {
@@ -889,7 +887,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					"  %s *cxx_this = (%s*)(c_this);\n",
 					cid_scope.id.IdScopedName(),
 					cid_scope.id.IdScopedName(),
-					)
+				)
 				fmter(bufs["cxx_body"], "cxx_this->")
 			}
 		}
@@ -905,25 +903,25 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_arg_%d = (%s*)(c_arg_%d);\n",
 						cxx_type, i, cxx_type, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				} else if cid_arg.is_string_like() {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
 						cxx_type[:len(cxx_type)-1], i, i, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				} else if cid_arg.is_cstring_like() {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_arg_%d = (%s)c_arg_%d;\n",
 						cxx_type, i, cxx_type, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s cxx_arg_%d = (%s)(c_arg_%d);\n",
 						cxx_type, i, cxx_type, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				}
 			} else if strings.HasSuffix(cxx_type, "&") {
@@ -931,14 +929,14 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					fmter(bufs["cxx_head"],
 						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
 						cxx_type[:len(cxx_type)-1], i, i, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_arg_%d = *(%s**)(&c_arg_%d);\n",
-						cxx_type[:len(cxx_type)-1], i, 
-						cxx_type[:len(cxx_type)-1], i, 
-						)
+						cxx_type[:len(cxx_type)-1], i,
+						cxx_type[:len(cxx_type)-1], i,
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				}
 			} else {
@@ -946,13 +944,13 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					fmter(bufs["cxx_head"],
 						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
 						cxx_type[:len(cxx_type)-1], i, i, i,
-						)
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_arg_%d = (%s*)c_arg_%d;\n",
-						cxx_type, i, cxx_type, i, 
-						)
+						cxx_type, i, cxx_type, i,
+					)
 					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				}
 			}
@@ -962,7 +960,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 				"%s(%s);\n",
 				cid.id.IdName(),
 				strings.Join(cxx_in, ", "),
-				)
+			)
 		} else {
 			// noop.
 		}
@@ -1008,7 +1006,7 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			go_ret = ""
 		}
 		cxx_protos := make([]string, 0, len(cgo_ovfct.fcts))
-		for i,_ := range cgo_ovfct.fcts {
+		for i, _ := range cgo_ovfct.fcts {
 			cxx_protos = append(cxx_protos,
 				cgo_ovfct.fcts[i].cxx_prototype())
 		}
@@ -1052,21 +1050,21 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					"\tif %s {\n",
 					if_cond,
 				)
-				
+
 				if go_ret == "" && go_receiver != "" {
 					fmter(bufs["go_impl"],
 						"\t\t%s%s(%s)\n\t\treturn\n",
 						go_receiver,
 						cfct.goname,
 						strings.Join(go_args, ", "),
-						)
+					)
 				} else {
 					fmter(bufs["go_impl"],
 						"\t\treturn %s%s(%s)\n",
 						go_receiver,
 						cfct.goname,
 						strings.Join(go_args, ", "),
-						)
+					)
 				}
 				fmter(bufs["go_impl"], "\t} // if-cast-ok\n")
 				fmter(bufs["go_impl"], "\t}\n")
@@ -1094,7 +1092,7 @@ type cxxgo_id struct {
 	id       cxxtypes.Id
 	uid      uint64 // unique numeric identifier
 	selected bool   // whether this identifier has been selected for wrapping
-	wrapped bool // whether this identifier has already been wrapped
+	wrapped  bool   // whether this identifier has already been wrapped
 
 	goname  string // the GoLang name for this C/C++ identifier
 	cgoname string // the CGo name for this C/C++ identifier
@@ -1188,7 +1186,7 @@ func get_cxxgo_id(pkgname string, id cxxtypes.Id) *cxxgo_id {
 		id:       id,
 		uid:      get_iid(id),
 		selected: false,
-		wrapped: false,
+		wrapped:  false,
 		goname:   gen_go_name_from_id(id),
 		cgoname:  gen_cgo_name_from_id(pkgname, id),
 	}
@@ -2035,7 +2033,7 @@ var _cxx2go_typemap = map[string]string{
 	"int":            "int",
 	"unsigned int":   "uint",
 
-	"char*": "string",
+	"char*":       "string",
 	"const char*": "string",
 	"char const*": "string",
 
