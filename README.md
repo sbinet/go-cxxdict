@@ -5,10 +5,30 @@ go-cxxdict
 bindings from any `C/C++` library using GCC-XML informations.
 
 Eventually, its plugin system should allow to support the generation
-of `Go` bindings from various sources (`CLang`, `SWIG-XML`, ...).
+of `Go` bindings from various sources (`CLang`, `SWIG-XML`, ...)
 Its plugin system should also allow to generate bindings for other
 languages than just `Go`.
 
 For the moment, only the generation of `Go` code for the `gc` compiler
-is supported.
+is supported (`gccgo` is planned though.)
 
+
+Status
+------
+
+What works:
+
+- simple functions
+- overloaded functions
+- simple classes
+- classes with simple inheritance
+- classes with overloaded methods
+- handling of C strings (ie: `const char*`)
+
+
+Tests
+-----
+
+Go under `go-cxxdict/tests` and run:
+
+``$ ./run.sh``
