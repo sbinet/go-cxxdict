@@ -1,13 +1,24 @@
 #!/bin/sh
 
+readlink=`which greadlink`
+sc=$?
+if [ $sc -ne 0 ]; then
+    readlink=`which readlink`
+fi
+
+if [ $sc -ne 0 ]; then
+    echo "** could not find 'readlink'"
+    exit $sc
+fi
+
 # Absolute path to this script, e.g. /home/user/bin/foo.sh
-SCRIPT=`readlink -f $0`
+SCRIPT=`$readlink -f $0`
 # Absolute path this script is in, thus /home/user/bin
 SCRIPTPATH=`dirname $SCRIPT`
 
 export CXX=${CXX-g++}
 export GCCXML=${GCCXML-gccxml}
-export GOCXXPKGROOT=`readlink -f $SCRIPTPATH/../../../go-cxxdict`
+export GOCXXPKGROOT=`$readlink -f $SCRIPTPATH/../../../go-cxxdict`
 export GOCXXDICTROOT=${GOCXXPKGROOT}/tests/basics
 export GOCXXDICTTESTROOT=${GOCXXDICTROOT}/test
 export GOPATH=${GOCXXDICTTESTROOT}/go:${GOPATH}

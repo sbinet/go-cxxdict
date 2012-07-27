@@ -1,7 +1,18 @@
 #!/bin/sh
 
+readlink=`which greadlink`
+sc=$?
+if [ $sc -ne 0 ]; then
+    readlink=`which readlink`
+fi
+
+if [ $sc -ne 0 ]; then
+    echo "** could not find 'readlink'"
+    exit $sc
+fi
+
 # Absolute path to this script, e.g. /home/user/bin/foo.sh
-SCRIPT=`readlink -f $0`
+SCRIPT=`$readlink -f $0`
 # Absolute path this script is in, thus /home/user/bin
 SCRIPTPATH=`dirname $SCRIPT`
 
