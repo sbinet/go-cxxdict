@@ -16,7 +16,7 @@ is supported (`gccgo` is planned though.)
 Status
 ------
 
-What works:
+What works (ie: has been tested and has regression tests):
 
 - simple functions
 - overloaded functions
@@ -25,6 +25,8 @@ What works:
 - classes with overloaded methods
 - handling of C strings (ie: `const char*`)
 
+Other `C++` features may work (by pure chance) but have not been
+tested yet.
 
 Tests
 -----
