@@ -10,8 +10,7 @@ public:
   Base();
   virtual ~Base();
 
-  //FIXME
-  //void do_hello(const char *who);
+  void do_hello(const char *who);
 
   virtual void do_virtual_hello(const char *who);
   virtual void pure_virtual_method(const char *who)=0;
@@ -26,7 +25,25 @@ public:
   D1(const char* name);
   virtual ~D1();
 
+  void do_hello(const char *who);
+  
   virtual void do_virtual_hello(const char *who);
+  virtual void pure_virtual_method(const char *who);
+  virtual const char* name() const { return m_name; }
+};
+
+class D2 : public Base
+{
+  char *m_name;
+  //D2& operator=(const D2&); // not implemented
+public:
+  D2(const char* name);
+  virtual ~D2();
+
+  // use Base's version
+  //void do_hello(const char *who);
+
+  virtual void do_virtual_hello(const char *who); 
   virtual void pure_virtual_method(const char *who);
   virtual const char* name() const { return m_name; }
 };

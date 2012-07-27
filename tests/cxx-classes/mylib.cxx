@@ -13,14 +13,12 @@ Base::~Base()
   fflush(stdout);
 }
 
-/*
 void
 Base::do_hello(const char* who)
 {
   printf("Base::do_hello(%s)\n", who);
   fflush(stdout);
 }
-*/
 
 void
 Base::do_virtual_hello(const char *who)
@@ -44,6 +42,13 @@ D1::~D1()
 }
 
 void
+D1::do_hello(const char* who)
+{
+  printf("D1[%s]::do_hello(%s)\n", m_name, who);
+  fflush(stdout);
+}
+
+void
 D1::do_virtual_hello(const char *who)
 {
   printf("D1[%s]::do_virtual_hello(%s)\n", this->m_name, who);
@@ -54,6 +59,44 @@ void
 D1::pure_virtual_method(const char *who)
 {
   printf("D1[%s]::pure_virtual_method(%s)\n", this->m_name, who);
+  fflush(stdout);
+}
+
+D2::D2(const char *name) :
+  Base(),
+  m_name(NULL)
+{
+  m_name = strdup(name);
+}
+
+D2::~D2()
+{
+  printf("D2::~D2[%s]...\n", this->name());
+  fflush(stdout);
+  free(m_name);
+}
+
+// use Base's version
+/*
+void
+D2::do_hello(const char* who)
+{
+  printf("D2[%s]::do_hello(%s)\n", m_name, who);
+  fflush(stdout);
+}
+*/
+
+void
+D2::do_virtual_hello(const char *who)
+{
+  printf("D2[%s]::do_virtual_hello(%s)\n", this->m_name, who);
+  fflush(stdout);
+}
+
+void
+D2::pure_virtual_method(const char *who)
+{
+  printf("D2[%s]::pure_virtual_method(%s)\n", this->m_name, who);
   fflush(stdout);
 }
 
