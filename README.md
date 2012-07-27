@@ -31,4 +31,11 @@ Tests
 
 Go under `go-cxxdict/tests` and run:
 
-``$ ./run.sh``
+``
+$ ./run.sh
+:: tests: basics cxx-oop
+:: running test [basics]...
+:: running test [basics]...[ok]
+:: running test [cxx-oop]...
+:: running test [cxx-oop]...[ok]
+``
