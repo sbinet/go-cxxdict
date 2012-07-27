@@ -17,13 +17,7 @@ export CGO_LDFLAGS=-L`pwd`
 
 function clean_up() {
     /bin/rm -rf ${GOCXXDICTTESTROOT}
-    /bin/rm -rf mylib_cxxdict.cxx
-    /bin/rm -rf mylib_gccxmlout.xml
-    /bin/rm -rf dump.xml
-    /bin/rm -rf mylibpkg.cxx
-    /bin/rm -rf mylibpkg.h
-    /bin/rm -rf mylibpkg.go
-    /bin/rm -rf libmylib_cxxdict.dsomap
+    /bin/rm -rf ${GOCXXDICTROOT}/{log,mylib.s}
 }
 
 function setup_dirs() {
