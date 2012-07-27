@@ -9,10 +9,10 @@ import (
 
 func main() {
 	
-	fmt.Printf("gocxx_mylib.Add42(100)= %v\n",
+	fmt.Printf("mylib.Add42(100)= %v\n",
 		mylib.Add42(100))
 
-	fmt.Printf("gocxx_mylib.Add42(0.1)= %v\n",
+	fmt.Printf("mylib.Add42(0.1)= %v\n",
 		mylib.Add42(0.1))
 
 	fmt.Printf("creating a new Foo...\n")

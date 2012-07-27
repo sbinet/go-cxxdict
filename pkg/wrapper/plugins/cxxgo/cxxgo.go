@@ -38,6 +38,8 @@ func (p *plugin) Init(g *wrapper.Generator) error {
 		"NS*",
 		"TT*",
 		"Base*",
+		"IAlg",
+		"App",
 		"Alg*",
 		"With*Base*",
 
@@ -93,9 +95,11 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 			//fmt.Printf("---\n")
 			sel_ids := make([]string, 0, len(p.ids))
 			for _, n := range p.ids {
+				//fmt.Printf("--> [%s]...\n", n)
 				id := cxxtypes.IdByName(n)
-				if mbr, ok := id.(*cxxtypes.Member); ok {
-					pid := cxxtypes.IdByName(mbr.Scope)
+				switch iid := id.(type) {
+				case *cxxtypes.Member:
+					pid := cxxtypes.IdByName(iid.Scope)
 					if pid != nil &&
 						str_is_in_slice(pid.IdScopedName(), p.ids) {
 						// parent is already selected... discard member
@@ -104,8 +108,22 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 					} else {
 						// keep it
 						sel_ids = append(sel_ids, n)
+						//fmt.Printf("** keep [%s] (parent=%v)\n", n, pid)
 					}
-				} else {
+				case *cxxtypes.OverloadFunctionSet:
+					pid := cxxtypes.IdByName(iid.Scope)
+					if pid != nil &&
+						str_is_in_slice(pid.IdScopedName(), p.ids) {
+						// parent is already selected... discard member
+						nremoved += 1
+						//fmt.Printf("** discard [%s]\n", n)
+					} else {
+						// keep it
+						sel_ids = append(sel_ids, n)
+						//fmt.Printf("** keep [%s] (parent=%v)\n", n, pid)
+					}
+				default:
+					//fmt.Printf("--- not a member [%s] (%T)\n", n, id)
 					// remove any lingering duplicate
 					if !str_is_in_slice(n, sel_ids) {
 						sel_ids = append(sel_ids, n)
@@ -274,30 +292,31 @@ func (p *plugin) Generate(fd *wrapper.FileDescriptor) error {
 	return nil
 }
 
-func (p *plugin) wrapClass(cid cxxgo_id, id *cxxtypes.ClassType) (err error) {
+func (p *plugin) wrapClass(cid *cxxgo_id, id *cxxtypes.ClassType) (err error) {
 	fmt.Printf(":: wrapping class [%s]...\n", id.IdScopedName())
 	err = nil
 
 	bufs := new_bufmap(
 		"cxx_head",
 		"cxx_body",
+		"cxx_tail",
 		"go_impl",
 		"go_iface",
 		"go_g_iface", //global iface (ie: outside interface context)
 	)
 
 	clf := "::" + id.IdScopedName()
-	clt := g_strtrans.Replace(id.IdScopedName())
 	go_cls_impl_name := "Gocxxcptr" + cid.goname
-
-	fmt.Printf("==> %s => %s\n", id.IdScopedName(), clt)
 
 	fmter(bufs["go_iface"],
 		`
 // %s wraps the C++ class %s
 type %s interface {
+    /* -- gocxx internals begin -- */
 	Gocxxcptr() uintptr
 	GocxxIs%s()
+    /* -- gocxx internals end -- */
+
 `,
 		cid.goname,
 		clf,
@@ -330,12 +349,24 @@ type %s interface {
 			return err
 		}
 		if base.IsPublic() {
-			bid := base.Type().(cxxtypes.Id)
-			go_base_cls_iface_name := gen_go_name_from_id(bid)
+			base_id := base.Type().(cxxtypes.Id)
+			bid := get_cxxgo_id(p.gen.Fd.Package, base_id)
+			go_base_cls_iface_name := bid.goname
 			fmter(bufs["go_iface"],
 				"\tGet%s() %s\n",
 				go_base_cls_iface_name,
 				go_base_cls_iface_name)
+
+			fmter(bufs["go_impl"],
+				"func (p %s) Get%s() %s {\n",
+				go_cls_impl_name,
+				go_base_cls_iface_name,
+				go_base_cls_iface_name,
+				)
+			fmter(bufs["go_impl"],
+				"return Gocxxcptr%s(p.Gocxxcptr())\n}\n",
+				go_base_cls_iface_name,
+				)
 		}
 	}
 
@@ -409,25 +440,30 @@ type %s interface {
 		return err
 	}
 
+	_, err = bufs["cxx_tail"].WriteTo(p.gen.Fd.Files["cxx"])
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf(":: wrapping class [%s]...[ok]\n", id.IdScopedName())
 	return err
 }
 
-func (p *plugin) wrapStruct(cid cxxgo_id, id *cxxtypes.StructType) error {
+func (p *plugin) wrapStruct(cid *cxxgo_id, id *cxxtypes.StructType) error {
 	fmt.Printf(":: wrapping struct [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping struct [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
-func (p *plugin) wrapNamespace(cid cxxgo_id, id *cxxtypes.Namespace) error {
+func (p *plugin) wrapNamespace(cid *cxxgo_id, id *cxxtypes.Namespace) error {
 	fmt.Printf(":: wrapping namespace [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping namespace [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
-func (p *plugin) wrapEnum(cid cxxgo_id, id *cxxtypes.EnumType) error {
+func (p *plugin) wrapEnum(cid *cxxgo_id, id *cxxtypes.EnumType) error {
 	var err error = nil
 	fmt.Printf(":: wrapping enum [%s]...\n", id.IdScopedName())
 
@@ -471,28 +507,28 @@ func (p *plugin) wrapMember(id *cxxtypes.Member, bufs bufmap_t) error {
 	return nil
 }
 
-func (p *plugin) wrapTypedef(cid cxxgo_id, id *cxxtypes.TypedefType) error {
+func (p *plugin) wrapTypedef(cid *cxxgo_id, id *cxxtypes.TypedefType) error {
 	fmt.Printf(":: wrapping typedef [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping typedef [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
-func (p *plugin) wrapRefType(cid cxxgo_id, id *cxxtypes.RefType) error {
+func (p *plugin) wrapRefType(cid *cxxgo_id, id *cxxtypes.RefType) error {
 	fmt.Printf(":: wrapping ref-type [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping ref-type [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
-func (p *plugin) wrapPtrType(cid cxxgo_id, id *cxxtypes.PtrType) error {
+func (p *plugin) wrapPtrType(cid *cxxgo_id, id *cxxtypes.PtrType) error {
 	fmt.Printf(":: wrapping ptr-type [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping ptr-type [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
 
-func (p *plugin) wrapCvrQualType(cid cxxgo_id, id *cxxtypes.CvrQualType) error {
+func (p *plugin) wrapCvrQualType(cid *cxxgo_id, id *cxxtypes.CvrQualType) error {
 	fmt.Printf(":: wrapping cvr-type [%s]...\n", id.IdScopedName())
 
 	fmt.Printf(":: wrapping cvr-type [%s]...[ok]\n", id.IdScopedName())
@@ -556,10 +592,16 @@ func (p %s) Set%s(arg %s) {
 }
 
 func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
-	fmt.Printf(":: wrapping fct-member [%s priv=%v]...\n", id.IdScopedName(),
-		id.IsPrivate())
+	var err error = nil
+	fmt.Printf(":: wrapping fct-member [%s]...\n", id.IdScopedName())
 	ovfct := cxxtypes.IdByName(id.Name).(*cxxtypes.OverloadFunctionSet)
 	cid := get_cxxgo_id(p.gen.Fd.Package, ovfct)
+	if cid.wrapped {
+		fmt.Printf(":: wrapping fct-member [%s]...[already-wrapped]\n", 
+			id.IdScopedName())
+		return err
+	}
+		
 	cgo_ovfct := p.new_cxxgo_ovfct(ovfct)
 	fct := cgo_ovfct.fcts[0].f
 	if !fct.IsConstructor() &&
@@ -571,15 +613,23 @@ func (p *plugin) wrapFctMember(id *cxxtypes.Member, bufs bufmap_t) error {
 			)
 	}
 
-	err := p.wrapFunction(cid, ovfct)
+	err = p.wrapFunction(cid, ovfct)
+	cid.wrapped = true
+
 	fmt.Printf(":: wrapping fct-member [%s]...[ok]\n", id.IdScopedName())
 	return err
 }
 
-func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) error {
+func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) error {
 	fmt.Printf(":: wrapping fct [%s]...\n", id.IdScopedName())
 	ovfct := id
 	var err error = nil
+	if cid.wrapped {
+		fmt.Printf(":: wrapping fct [%s]... [already wrapped]\n", 
+			id.IdScopedName())
+		return err
+	}
+
 	pkg := p.gen.Fd.Package
 
 	bufs := new_bufmap(
@@ -609,7 +659,7 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		// }
 
 		go_ret_type := ""
-		cid_args := make([]cxxgo_id, 0, nargs)
+		cid_args := make([]*cxxgo_id, 0, nargs)
 
 		if _, ok := dispatch_table[nargs]; !ok {
 			dispatch_table[nargs] = []*cxxgo_function{&cfct}
@@ -665,14 +715,26 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		}
 		if fct.Ret != "" && fct.Ret != "void" {
 			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
-			fmter(bufs["go_impl"],
-				"\tvar c_ret C.%s\n",
-				cid_ret.cgoname,
-			)
-			cgo_out = append(cgo_out,
-				fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
-				"\treturn go_ret\n",
-			)
+			if cid_ret.is_cstring_like() {
+				fmter(bufs["go_impl"], 
+					"\tc_ret := C.CString(\"\")\n")
+				fmter(bufs["go_impl"], 
+					"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+				cgo_out = append(cgo_out,
+					"\tgo_ret := C.GoString(c_ret)\n",
+					"\treturn go_ret\n",
+					)
+				
+			} else {
+				fmter(bufs["go_impl"],
+					"\tvar c_ret C.%s\n",
+					cid_ret.cgoname,
+					)
+				cgo_out = append(cgo_out,
+					fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
+					"\treturn go_ret\n",
+					)
+			}
 			go_ret_type = fct.Ret
 
 		} else {
@@ -690,11 +752,20 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		for i, _ := range fct.Params {
 			cid_arg := cid_args[i]
 			if cid_arg.is_cstring_like() {
-				fmter(bufs["go_impl"], "\tc_arg_%d = C.CString(arg_%d)\n", i, i)
+				fmter(bufs["go_impl"], 
+					"\tc_arg_%d := C.CString(arg_%d)\n", i, i)
 				fmter(bufs["go_impl"], 
 					"\tdefer C.free(unsafe.Pointer(c_arg_%d))\n", i)
 				cgo_in = append(cgo_in,
 					fmt.Sprintf("unsafe.Pointer(c_arg_%d)", i))
+			} else if cid_arg.is_class_like() {
+				fmter(bufs["go_impl"],
+					"\tc_arg_%d := unsafe.Pointer(arg_%d.Gocxxcptr())\n",
+					i,
+					i,
+					)
+				cgo_in = append(cgo_in,
+					fmt.Sprintf("c_arg_%d", i))
 			} else {
 				fmter(bufs["go_impl"],
 					"\tc_arg_%d := C.%s(arg_%d)\n",
@@ -788,11 +859,25 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 						"  %s* cxx_arg_%d = (%s*)(c_arg_%d);\n",
 						cxx_type, i, cxx_type, i,
 						)
-				} else {
+					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
+				} else if cid_arg.is_string_like() {
 					fmter(bufs["cxx_head"],
-						"  %s cxx_arg_%d = (%s*)(c_arg_%d);\n",
+						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
+						cxx_type[:len(cxx_type)-1], i, i, i,
+						)
+					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
+				} else if cid_arg.is_cstring_like() {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_arg_%d = (%s)c_arg_%d;\n",
 						cxx_type, i, cxx_type, i,
 						)
+					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
+				} else {
+					fmter(bufs["cxx_head"],
+						"  %s cxx_arg_%d = (%s)(c_arg_%d);\n",
+						cxx_type, i, cxx_type, i,
+						)
+					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				}
 			} else if strings.HasSuffix(cxx_type, "&") {
 				if cid_arg.is_string_like() {
@@ -800,12 +885,14 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
 						cxx_type[:len(cxx_type)-1], i, i, i,
 						)
+					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
-						"  %s* cxx_arg_%d = (%s*)c_arg_%d;\n",
+						"  %s* cxx_arg_%d = *(%s**)(&c_arg_%d);\n",
 						cxx_type[:len(cxx_type)-1], i, 
 						cxx_type[:len(cxx_type)-1], i, 
 						)
+					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				}
 			} else {
 				if cid_arg.is_string_like() {
@@ -813,14 +900,15 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
 						cxx_type[:len(cxx_type)-1], i, i, i,
 						)
+					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_arg_%d = (%s*)c_arg_%d;\n",
 						cxx_type, i, cxx_type, i, 
 						)
+					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 				}
 			}
-			cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
 		}
 		if !fct.IsDestructor() {
 			fmter(bufs["cxx_body"],
@@ -831,7 +919,7 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		} else {
 			// noop.
 		}
-		fmter(bufs["cxx_body"], "}\n")
+		fmter(bufs["cxx_tail"], "}\n")
 
 		// commit buffers
 		_, err = bufs["go_iface"].WriteTo(p.gen.Fd.Files["go"])
@@ -947,6 +1035,7 @@ func (p *plugin) wrapFunction(cid cxxgo_id, id *cxxtypes.OverloadFunctionSet) er
 		}
 	}
 
+	cid.wrapped = true
 	fmt.Printf(":: wrapping fct [%s]...[ok]\n", id.IdScopedName())
 	return nil
 }
@@ -958,9 +1047,38 @@ type cxxgo_id struct {
 	id       cxxtypes.Id
 	uid      uint64 // unique numeric identifier
 	selected bool   // whether this identifier has been selected for wrapping
+	wrapped bool // whether this identifier has already been wrapped
 
 	goname  string // the GoLang name for this C/C++ identifier
 	cgoname string // the CGo name for this C/C++ identifier
+}
+
+func (cid *cxxgo_id) is_class_like() bool {
+	switch id := cid.id.(type) {
+	case *cxxtypes.ClassType:
+		return true
+	case *cxxtypes.PtrType:
+		pid := id.UnderlyingType().(cxxtypes.Id)
+		switch pid.(type) {
+		case *cxxtypes.ClassType:
+			// for a class, the go-type is an interface...
+			// having a pointer to an interface isn't really go-ish
+			return true
+		}
+		return false
+	case *cxxtypes.RefType:
+		pid := id.UnderlyingType().(cxxtypes.Id)
+		switch pid.(type) {
+		case *cxxtypes.ClassType:
+			// for a class, the go-type is an interface...
+			// having a pointer to an interface isn't really go-ish
+			return true
+		}
+		return false
+	default:
+		return false
+	}
+	panic("unreachable")
 }
 
 func (cid *cxxgo_id) is_cstring_like() bool {
@@ -1019,16 +1137,17 @@ func (cid *cxxgo_id) is_string_like() bool {
 	return false
 }
 
-func get_cxxgo_id(pkgname string, id cxxtypes.Id) cxxgo_id {
+func get_cxxgo_id(pkgname string, id cxxtypes.Id) *cxxgo_id {
 	cid, ok := g_cxxgo_idmap[id]
 	if ok {
 		return cid
 	}
 
-	cid = cxxgo_id{
+	cid = &cxxgo_id{
 		id:       id,
 		uid:      get_iid(id),
 		selected: false,
+		wrapped: false,
 		goname:   gen_go_name_from_id(id),
 		cgoname:  gen_cgo_name_from_id(pkgname, id),
 	}
@@ -1040,7 +1159,7 @@ func get_cxxgo_id(pkgname string, id cxxtypes.Id) cxxgo_id {
 // from a C++ OverloadFunctionSet (handling different signatures and default
 // parameters)
 type cxxgo_overload_fct_set_t struct {
-	cid    cxxgo_id
+	cid    *cxxgo_id
 	pkg    string
 	ovfct  *cxxtypes.OverloadFunctionSet
 	fcts   []cxxgo_function
@@ -1401,7 +1520,15 @@ func gen_go_name_from_id(id cxxtypes.Id) string {
 		n = strings.Title(n)
 
 	case *cxxtypes.PtrType:
-		return "*" + gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
+		ptr := "*"
+		ptee_id := id.UnderlyingType().(cxxtypes.Id)
+		switch ptee_id.(type) {
+		case *cxxtypes.ClassType:
+			// for a class, the go-type is an interface...
+			// having a pointer to an interface isn't really go-ish
+			ptr = ""
+		}
+		return ptr + gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
 
 	case *cxxtypes.RefType:
 		return gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
@@ -1451,14 +1578,14 @@ func gen_cgo_name_from_id(pkgname string, id cxxtypes.Id) string {
 		n = gen_cgo_name_from_id(pkgname, iid)
 
 	case *cxxtypes.ClassType:
-		n = "void*"
+		n = "_gocxx_voidptr"
 
 	case *cxxtypes.PtrType:
-		n = "void*"
+		n = "_gocxx_voidptr"
 		//return "*" + gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
 
 	case *cxxtypes.RefType:
-		n = "void*"
+		n = "_gocxx_voidptr"
 		//return gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
 
 	case *cxxtypes.CvrQualType:
@@ -1674,7 +1801,7 @@ func get_iid_str(id cxxtypes.Id) string {
 // identifiers
 var g_idmap idmap_t
 
-type cxxgo_idmap_t map[cxxtypes.Id]cxxgo_id
+type cxxgo_idmap_t map[cxxtypes.Id]*cxxgo_id
 
 // g_cxxgo_idmap is a global map of all cxxgo_ids
 var g_cxxgo_idmap cxxgo_idmap_t
@@ -1726,6 +1853,7 @@ var _cxx_hdr string = `
 // C includes
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 // C++ includes
 #include <string>
@@ -1775,6 +1903,13 @@ static _gostring_ _gocxx_makegostring(const char *p, size_t l) {
   return ret;
 }
 
+static char* _gocxx_makecstring(const _gostring_ *s) {
+  char* cstr = (char*)malloc((s->n+1) * sizeof(char));
+  memcpy(cstr, s->p, s->n);
+  cstr[s->n] = '\0';
+  return cstr;
+}
+
 #define GOCXX_contract_assert(expr, msg) \
   if (!(expr)) { _gocxx_gopanic(msg); } else
 
@@ -1789,6 +1924,8 @@ var _hdr_hdr string = `
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef void* _gocxx_voidptr;
 `
 
 var _go_footer string = `
@@ -1842,6 +1979,10 @@ var _cxx2go_typemap = map[string]string{
 	"unsigned short": "uint16",
 	"int":            "int",
 	"unsigned int":   "uint",
+
+	"char*": "string",
+	"const char*": "string",
+	"char const*": "string",
 
 	// FIXME: 32/64 platforms... (and cross-compilation)
 	//"long":           "int32",

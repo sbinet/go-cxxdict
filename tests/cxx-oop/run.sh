@@ -1,9 +1,14 @@
 #!/bin/sh
 
+# Absolute path to this script, e.g. /home/user/bin/foo.sh
+SCRIPT=`readlink -f $0`
+# Absolute path this script is in, thus /home/user/bin
+SCRIPTPATH=`dirname $SCRIPT`
+
 export CXX=${CXX-g++}
 export GCCXML=${GCCXML-gccxml}
-export GOCXXPKGROOT=${HOME}/dev/go/dev/gocode/src/github.com/sbinet/go-cxxdict
-export GOCXXDICTROOT=${GOCXXPKGROOT}/cmd/go-gencxxwrapper/gocxx
+export GOCXXPKGROOT=`readlink -f $SCRIPTPATH/../../../go-cxxdict`
+export GOCXXDICTROOT=${GOCXXPKGROOT}/tests/cxx-oop
 export GOCXXDICTTESTROOT=${GOCXXDICTROOT}/test
 export GOPATH=${GOCXXDICTTESTROOT}/go:${GOPATH}
 export LD_LIBRARY_PATH=${GOCXXDICTTESTROOT}/lib:${LD_LIBRARY_PATH}
@@ -42,8 +47,10 @@ function compile_lib() {
 function gen_cxxdict() {
     pushd ${GOCXXDICTTESTROOT}
 
-    ${GCCXML} -fxml=out.xml \
+    ${GCCXML} \
+        --gccxml-compiler ${CXX} \
         ${GOCXXDICTROOT}/mylib.hh \
+        -fxml=out.xml \
         || return 1
 
 
@@ -112,7 +119,7 @@ function test_go_pkg() {
     echo "####"
 
     echo ":: checking ref.log..."
-    #diff -urN ref.log chk.log || return 1
+    diff -urN ../ref.log chk.log || return 1
     echo ":: checking ref.log... [ok]"
 
     return 0
