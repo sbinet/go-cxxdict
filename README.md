@@ -1,7 +1,7 @@
 go-cxxdict
 ==========
 
-`GoCxx` is (a still experimental) tool to automatically generate `Go`
+`GoCxx` is a (still experimental) tool to automatically generate `Go`
 bindings from any `C/C++` library using GCC-XML informations.
 
 Eventually, its plugin system should allow to support the generation
