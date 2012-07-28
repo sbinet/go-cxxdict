@@ -172,5 +172,5 @@ function run() {
     return 0
 }
 
-(run 2>&1 | tee log) || exit 1
+run || exit 1
 

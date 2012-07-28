@@ -20,16 +20,24 @@ tests="basics cxx-classes cxx-stl cxx-oop"
 
 function run() {
     cd $SCRIPTPATH
+    sc=0
     echo ":: tests: $tests"
     for t in $tests
-    do
-	echo ":: running test [$t]..."
-        (cd $t &&            
-            (./run.sh >& /dev/null || exit 1) &&
-            echo ":: running test [$t]...[ok]" &&
-            cd ..) || \
-            echo ":: running test [$t]...[err]"
+    do	
+        (echo "   running test [$t]..." && 
+	    cd $t &&         
+	    /bin/rm -f test.log &&
+            (./run.sh >& test.log || exit 1) &&
+            echo "   running test [$t]... [OK]" &&
+            cd ..)
+	test_sc=$?
+	if [ $test_sc -ne 0 ]; then
+	    echo "** running test [$t]... [ERROR] **"
+	    sc=1
+	fi
     done;
+    echo ":: tests: $tests [DONE]"
+    return $sc
 }
 
 run || exit 1
