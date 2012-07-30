@@ -4,6 +4,7 @@ readlink=`which greadlink`
 sc=$?
 if [ $sc -ne 0 ]; then
     readlink=`which readlink`
+    sc=$?
 fi
 
 if [ $sc -ne 0 ]; then
