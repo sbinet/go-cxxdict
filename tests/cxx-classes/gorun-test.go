@@ -39,6 +39,20 @@ func main() {
 
 	fmt.Printf("call d1 methods via mylib.Base...[done]\n")
 
+	fmt.Printf("call d1 methods via mylib.Base...\n")
+	b = d1.GocxxGetBase()
+
+	fmt.Printf("b.Do_hello(\"you\")...\n")
+	b.Do_hello("you")
+
+	fmt.Printf("b.Do_virtual_hello(\"you\")...\n")
+	b.Do_virtual_hello("you")
+
+	fmt.Printf("b.Pure_virtual_method(\"you\")...\n")
+	b.Pure_virtual_method("you")
+
+	fmt.Printf("call d1 methods via mylib.Base...[done]\n")
+
 	mylib.DeleteD1(d1)
 
 	fmt.Printf("mylib.NewD1(\"d12\")...\n")
