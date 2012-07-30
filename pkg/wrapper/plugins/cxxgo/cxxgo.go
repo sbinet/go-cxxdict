@@ -47,6 +47,9 @@ func (p *plugin) Init(g *wrapper.Generator) error {
 		"Alg*",
 		"With*Base*",
 
+		//"std::allocator*",
+		//"__gnu_cxx::*",
+
 		"*Enum*",
 		"cblas*",
 		"*CBLAS_*",
@@ -330,11 +333,11 @@ type %s interface {
 
 	fmter(bufs["go_impl"], "type %s uintptr\n", go_cls_impl_name)
 	fmter(bufs["go_impl"],
-		"func (p %s) Gocxxcptr() uintptr {\n\treturn uintptr(p)\n}\n",
+		"\nfunc (p %s) Gocxxcptr() uintptr {\n\treturn uintptr(p)\n}\n",
 		go_cls_impl_name,
 	)
 	fmter(bufs["go_impl"],
-		"func (p %s) GocxxIs%s() {\n}\n",
+		"\nfunc (p %s) GocxxIs%s() {\n}\n",
 		go_cls_impl_name,
 		cid.goname,
 	)
@@ -362,7 +365,7 @@ type %s interface {
 				go_base_cls_iface_name)
 
 			fmter(bufs["go_impl"],
-				"func (p %s) Get%s() %s {\n",
+				"\nfunc (p %s) Get%s() %s {\n",
 				go_cls_impl_name,
 				go_base_cls_iface_name,
 				go_base_cls_iface_name,
@@ -377,7 +380,7 @@ type %s interface {
 				go_base_cls_iface_name,
 			)
 			fmter(bufs["go_impl"],
-				"func (p %s) GocxxIs%s() {\n}\n",
+				"\nfunc (p %s) GocxxIs%s() {\n}\n",
 				go_cls_impl_name,
 				go_base_cls_iface_name,
 			)
@@ -410,7 +413,7 @@ type %s interface {
 			fmt.Printf("==mdind: %v\n", mbr.IdKind())
 			return fmt.Errorf("cxxgo: could not retrieve identifier [%s]\n%s", mbr.Name, mbr)
 		}
-		fmt.Printf("--> (%s)[%s]...\n", mbr.IdScopedName(), mbr)
+		//fmt.Printf("--> (%s)[%s]...\n", mbr.IdScopedName(), mbr)
 		err := p.wrapMember(&mbr, bufs)
 		if err != nil {
 			return err
@@ -522,14 +525,82 @@ func (p *plugin) wrapMember(id *cxxtypes.Member, bufs bufmap_t) error {
 }
 
 func (p *plugin) wrapTypedef(cid *cxxgo_id, id *cxxtypes.TypedefType) error {
+	var err error
 	fmt.Printf(":: wrapping typedef [%s]...\n", id.IdScopedName())
 
+	bufs := new_bufmap(
+		"cgo_head",
+		"go_iface",
+	)
+
+	fmter(bufs["cgo_head"],
+		"\n/* wrap [%s] */\n",
+		cid.id.IdScopedName(),
+	)
+
+	uid := cxxtypes.UnqualifiedType(id.UnderlyingType())
+	//uid := id.UnderlyingType()
+	switch uid.(type) {
+	case *cxxtypes.FundamentalType:
+		fmter(bufs["cgo_head"],
+			"typedef %s %s;\n",
+			uid.TypeName(),
+			strings.Replace(cid.cgoname, "C.", "", 1),
+			)
+	default:
+		fmter(bufs["cgo_head"],
+			"typedef void* %s;\n",
+			strings.Replace(cid.cgoname, "C.", "", 1),
+			)
+	}
+
+	// commit buffers
+	_, err = bufs["cgo_head"].WriteTo(p.gen.Fd.Files["hdr"])
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf(":: wrapping typedef [%s]...[ok]\n", id.IdScopedName())
-	return nil
+	return err
 }
 
 func (p *plugin) wrapRefType(cid *cxxgo_id, id *cxxtypes.RefType) error {
 	fmt.Printf(":: wrapping ref-type [%s]...\n", id.IdScopedName())
+
+	var err error
+
+	bufs := new_bufmap(
+		"cgo_head",
+		"go_iface",
+	)
+
+	fmter(bufs["cgo_head"],
+		"\n/* wrap [%s] (ref-type)*/\n",
+		cid.id.IdScopedName(),
+	)
+
+	uid := cxxtypes.UnqualifiedType(id.UnderlyingType())
+	switch uid.(type) {
+	case *cxxtypes.FundamentalType:
+		// no-op: handle as a pointer
+
+		// fmter(bufs["cgo_head"],
+		// 	"typedef %s* %s;\n",
+		// 	uid.TypeName(),
+		// 	strings.Replace(cid.cgoname, "C.", "", 1),
+		// 	)
+	default:
+		fmter(bufs["cgo_head"],
+			"typedef void* %s;\n",
+			strings.Replace(cid.cgoname, "C.", "", 1),
+			)
+	}
+
+	// commit buffers
+	_, err = bufs["cgo_head"].WriteTo(p.gen.Fd.Files["hdr"])
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf(":: wrapping ref-type [%s]...[ok]\n", id.IdScopedName())
 	return nil
@@ -537,6 +608,40 @@ func (p *plugin) wrapRefType(cid *cxxgo_id, id *cxxtypes.RefType) error {
 
 func (p *plugin) wrapPtrType(cid *cxxgo_id, id *cxxtypes.PtrType) error {
 	fmt.Printf(":: wrapping ptr-type [%s]...\n", id.IdScopedName())
+	var err error
+
+	bufs := new_bufmap(
+		"cgo_head",
+		"go_iface",
+	)
+
+	fmter(bufs["cgo_head"],
+		"\n/* wrap [%s] (ptr-type)*/\n",
+		cid.id.IdScopedName(),
+	)
+
+	uid := cxxtypes.UnqualifiedType(id.UnderlyingType())
+	switch uid.(type) {
+	case *cxxtypes.FundamentalType:
+		// no-op
+		// fmter(bufs["cgo_head"],
+		// 	"typedef %s %s;\n",
+		// 	uid.TypeName(),
+		// 	strings.Replace(cid.cgoname, "C.", "", 1),
+		// 	)
+	default:
+		fmter(bufs["cgo_head"],
+			"typedef struct { char _padding[%v]; } %s;\n",
+			int(id.TypeSize()),
+			strings.Replace(cid.cgoname, "C.", "", 1),
+			)
+	}
+
+	// commit buffers
+	_, err = bufs["cgo_head"].WriteTo(p.gen.Fd.Files["hdr"])
+	if err != nil {
+		return err
+	}
 
 	fmt.Printf(":: wrapping ptr-type [%s]...[ok]\n", id.IdScopedName())
 	return nil
@@ -745,27 +850,6 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			cgo_in = append(cgo_in, "c_this")
 		}
 		if fct.Ret != "" && fct.Ret != "void" {
-			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
-			if cid_ret.is_cstring_like() {
-				fmter(bufs["go_impl"],
-					"\tc_ret := C.CString(\"\")\n")
-				fmter(bufs["go_impl"],
-					"\tdefer C.free(unsafe.Pointer(c_ret))\n")
-				cgo_out = append(cgo_out,
-					"\tgo_ret := C.GoString(c_ret)\n",
-					"\treturn go_ret\n",
-				)
-
-			} else {
-				fmter(bufs["go_impl"],
-					"\tvar c_ret C.%s\n",
-					cid_ret.cgoname,
-				)
-				cgo_out = append(cgo_out,
-					fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
-					"\treturn go_ret\n",
-				)
-			}
 			go_ret_type = fct.Ret
 
 		} else {
@@ -782,7 +866,14 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 
 		for i, _ := range fct.Params {
 			cid_arg := cid_args[i]
-			if cid_arg.is_cstring_like() {
+			if cid_arg.is_string_like() {
+				fmter(bufs["go_impl"],
+					"\tc_arg_%d := C.CString(arg_%d)\n", i, i)
+				fmter(bufs["go_impl"],
+					"\tdefer C.free(unsafe.Pointer(c_arg_%d))\n", i)
+				cgo_in = append(cgo_in,
+					fmt.Sprintf("unsafe.Pointer(c_arg_%d)", i))
+			} else if cid_arg.is_cstring_like() {
 				fmter(bufs["go_impl"],
 					"\tc_arg_%d := C.CString(arg_%d)\n", i, i)
 				fmter(bufs["go_impl"],
@@ -797,9 +888,17 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 				)
 				cgo_in = append(cgo_in,
 					fmt.Sprintf("c_arg_%d", i))
+			} else if cid_arg.is_pointer_like() {
+				fmter(bufs["go_impl"],
+					"\tc_arg_%d := unsafe.Pointer(&arg_%d)\n",
+					i, i,
+				)
+				cgo_in = append(cgo_in,
+					fmt.Sprintf("c_arg_%d", i))
+
 			} else {
 				fmter(bufs["go_impl"],
-					"\tc_arg_%d := C.%s(arg_%d)\n",
+					"\tc_arg_%d := %s(arg_%d)\n",
 					i,
 					cid_arg.cgoname,
 					i,
@@ -808,17 +907,20 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 					fmt.Sprintf("unsafe.Pointer(&c_arg_%d)", i))
 			}
 		}
-		fmter(bufs["go_impl"],
-			"\tC.%s(%s)\n%s",
-			cfct.cgoname,
-			strings.Join(cgo_in, ", "),
-			strings.Join(cgo_out, ""),
-		)
-		fmter(bufs["go_impl"], "}\n")
 
 		if go_ret_type != "" {
 			cid_ret := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Ret))
 			cxx_type := cid_ret.id.IdScopedName()
+			// drop const-qualifier...
+			if idt, ok := cid_ret.id.(cxxtypes.Type); ok && (idt.Qualifiers()&cxxtypes.TQ_Const) != 0 {
+				//noconst_id := cid_ret.id
+				//println("===> const:", cxx_type)
+				// FIXME: devise a better API in cxxtypes...
+				cxx_type = strings.Replace(cxx_type, " const*", "*", 1)
+				cxx_type = strings.Replace(cxx_type, " const&", "&", 1)
+				//cxx_type = strings.Replace(cxx_type, " const", "", 1)
+				//println("<=== const:", cxx_type, "[[", cfct.goname, "]]")
+			}
 			if strings.HasSuffix(cxx_type, "*") {
 				// pointer to data member
 				if strings.HasSuffix(cxx_type, ":*") {
@@ -831,29 +933,103 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
 						cxx_type[:len(cxx_type)-1],
 					)
+					fmter(bufs["go_impl"],
+						"\tc_ret := C.CString(\"\")\n")
+					fmter(bufs["go_impl"],
+						"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := C.GoString(c_ret)\n",
+						"\treturn go_ret\n",
+						)
 				} else if cid_ret.is_cstring_like() {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = (%s*)c_ret;\n",
 						cxx_type, cxx_type,
 					)
+					fmter(bufs["go_impl"],
+						"\tc_ret := C.CString(\"\")\n")
+					fmter(bufs["go_impl"],
+						"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := C.GoString(c_ret)\n",
+						"\treturn go_ret\n",
+					)
 				} else {
 					fmter(bufs["cxx_head"],
-						"  %s cxx_ret = (%s)(c_ret);\n",
+						"  %s* cxx_ret = (%s*)(&c_ret);\n",
 						cxx_type, cxx_type,
 					)
+					fmter(bufs["go_impl"],
+						"\tvar c_ret %s\n",
+						cid_ret.cgoname,
+						)
+					if fct.IsAssignOperator() || cid_ret.is_class_like() {
+						cgo_out = append(cgo_out,
+							fmt.Sprintf("\tgo_ret := Gocxxcptr%s(c_ret)\n", cid_ret.goname),
+							"\treturn go_ret\n",
+							)
+					} else {
+						cgo_out = append(cgo_out,
+							fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname[1:]),
+							"\treturn &go_ret\n",
+						)
+					}
 				}
 			} else if strings.HasSuffix(cxx_type, "&") {
 				if cid_ret.is_string_like() {
 					fmter(bufs["cxx_head"],
-						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
+						"  %s cxx_ret_storage; %s* cxx_ret = &cxx_ret_storage;\n",
+						cxx_type[:len(cxx_type)-1],
 						cxx_type[:len(cxx_type)-1],
 					)
+					fmter(bufs["cxx_tail"],
+						"  *(_gostring_*)c_ret = _gocxx_makegostring(cxx_ret->c_str(), cxx_ret->size());\n",
+						)
+					fmter(bufs["go_impl"],
+						"\tvar c_ret string\n//\tc_ret := unsafe.Pointer(&c_ret_storage)\n")
+					fmter(bufs["go_impl"],
+						"\t//defer C.free(unsafe.Pointer(c_ret_storage))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := c_ret\n",
+						"\treturn go_ret\n",
+					)
+				} else if cid_ret.is_cstring_like() {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = *(%s**)(&c_ret);\n",
+						cxx_type[:len(cxx_type)-1],
+						cxx_type[:len(cxx_type)-1],
+					)
+
+					fmter(bufs["go_impl"],
+						"\tc_ret := C.CString(\"\")\n")
+					fmter(bufs["go_impl"],
+						"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := C.GoString(c_ret)\n",
+						"\treturn go_ret\n",
+						)
+
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = *(%s**)(&c_ret);\n",
 						cxx_type[:len(cxx_type)-1],
 						cxx_type[:len(cxx_type)-1],
 					)
+					fmter(bufs["go_impl"],
+						"\tvar c_ret %s\n",
+						cid_ret.cgoname,
+					)
+					if fct.IsAssignOperator() || cid_ret.is_class_like() {
+						cgo_out = append(cgo_out,
+							fmt.Sprintf("\tgo_ret := Gocxxcptr%s(c_ret)\n", cid_ret.goname),
+							"\treturn go_ret\n",
+						)
+					} else {
+						cgo_out = append(cgo_out,
+							fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
+							"\treturn go_ret\n",
+						)
+					}
 				}
 			} else {
 				if cid_ret.is_string_like() {
@@ -861,14 +1037,60 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 						"  %s cxx_ret( ((_gostring_*)c_ret)->p, ((_gostring_*)c_ret)->n);\n",
 						cxx_type[:len(cxx_type)-1],
 					)
+					fmter(bufs["go_impl"],
+						"\tc_ret := C.CString(\"\")\n")
+					fmter(bufs["go_impl"],
+						"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := C.GoString(c_ret)\n",
+						"\treturn go_ret\n",
+						)
+
+				} else if cid_ret.is_cstring_like() {
+					fmter(bufs["cxx_head"],
+						"  %s* cxx_ret = (%s*)c_ret;\n",
+						cxx_type, cxx_type,
+					)
+
+					fmter(bufs["go_impl"],
+						"\tc_ret := C.CString(\"\")\n")
+					fmter(bufs["go_impl"],
+						"\tdefer C.free(unsafe.Pointer(c_ret))\n")
+					cgo_out = append(cgo_out,
+						"\tgo_ret := C.GoString(c_ret)\n",
+						"\treturn go_ret\n",
+					)
+
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_ret = (%s*)c_ret;\n",
 						cxx_type, cxx_type,
 					)
+					fmter(bufs["go_impl"],
+						"\tvar c_ret %s\n",
+						cid_ret.cgoname,
+					)
+					if fct.IsAssignOperator() || cid_ret.is_class_like() {
+						cgo_out = append(cgo_out,
+							fmt.Sprintf("\tgo_ret := Gocxxcptr%s(c_ret)\n", cid_ret.goname),
+							"\treturn go_ret\n",
+						)
+					} else {
+						if cid_ret.goname == "bool" {
+							cgo_out = append(cgo_out,
+								fmt.Sprintf("\tgo_ret := %s(_gocxx_int2bool(c_ret))\n", cid_ret.goname),
+								"\treturn go_ret\n",
+							)
+						} else {
+							cgo_out = append(cgo_out,
+								fmt.Sprintf("\tgo_ret := %s(c_ret)\n", cid_ret.goname),
+								"\treturn go_ret\n",
+							)
+						}
+					}
 				}
 			}
-			fmter(bufs["cxx_body"], "  (*cxx_ret) = ")
+			fmter(bufs["cxx_body"], "  (*cxx_ret) = (%s)", cxx_type)
 		} else {
 			fmter(bufs["cxx_body"], "  ")
 		}
@@ -894,6 +1116,15 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 				fmter(bufs["cxx_body"], "cxx_this->")
 			}
 		}
+
+		fmter(bufs["go_impl"],
+			"\t%s(%s)\n%s",
+			cfct.cgoname,
+			strings.Join(cgo_in, ", "),
+			strings.Join(cgo_out, ""),
+		)
+		fmter(bufs["go_impl"], "}\n")
+
 
 		for i, _ := range fct.Params {
 			cid_arg := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.Params[i].Type))
@@ -930,10 +1161,10 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			} else if strings.HasSuffix(cxx_type, "&") {
 				if cid_arg.is_string_like() {
 					fmter(bufs["cxx_head"],
-						"  %s cxx_arg_%d( ((_gostring_*)c_arg_%d)->p, ((_gostring_*)c_arg_%d)->n);\n",
-						cxx_type[:len(cxx_type)-1], i, i, i,
+						"  %s cxx_arg_%d((const char*)c_arg_%d);\n",
+						cxx_type[:len(cxx_type)-1], i, i,
 					)
-					cxx_in = append(cxx_in, fmt.Sprintf("*cxx_arg_%d", i))
+					cxx_in = append(cxx_in, fmt.Sprintf("cxx_arg_%d", i))
 				} else {
 					fmter(bufs["cxx_head"],
 						"  %s* cxx_arg_%d = *(%s**)(&c_arg_%d);\n",
@@ -959,9 +1190,14 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 			}
 		}
 		if !fct.IsDestructor() {
+			call := cid.id.IdName()
+			if fct.IsConstructor() {
+				cid_scope := get_cxxgo_id(pkg, cxxtypes.IdByName(fct.BaseId.Scope))
+				call = cid_scope.id.IdScopedName()
+			}
 			fmter(bufs["cxx_body"],
 				"%s(%s);\n",
-				cid.id.IdName(),
+				call,
 				strings.Join(cxx_in, ", "),
 			)
 		} else {
@@ -1062,12 +1298,29 @@ func (p *plugin) wrapFunction(cid *cxxgo_id, id *cxxtypes.OverloadFunctionSet) e
 						strings.Join(go_args, ", "),
 					)
 				} else {
-					fmter(bufs["go_impl"],
-						"\t\treturn %s%s(%s)\n",
-						go_receiver,
-						cfct.goname,
-						strings.Join(go_args, ", "),
-					)
+					// FIXME:
+					// handle overload: 
+					//    void fct(T1, T2)
+					//    T3   fct(T0)
+					if (cfct.f.Ret != "" && cfct.f.Ret != "void") ||
+						cfct.f.IsConstructor() {
+						fmter(bufs["go_impl"],
+							"\t\treturn %s%s(%s)\n",
+							go_receiver,
+							cfct.goname,
+							strings.Join(go_args, ", "),
+							)
+					} else {
+						go_proto := strings.Split(cgo_ovfct.go_prototype(), " ")
+						
+						fmter(bufs["go_impl"],
+							"\t\tvar out %s\n\t\t%s%s(%s)\n\t\treturn out",
+							go_proto[len(go_proto)-1],
+							go_receiver,
+							cfct.goname,
+							strings.Join(go_args, ", "),
+							)
+					}
 				}
 				fmter(bufs["go_impl"], "\t} // if-cast-ok\n")
 				fmter(bufs["go_impl"], "\t}\n")
@@ -1155,7 +1408,13 @@ func (cid *cxxgo_id) is_cstring_like() bool {
 func (cid *cxxgo_id) is_string_like() bool {
 	n := cid.id.IdScopedName()
 	switch n {
-	case "string", "std::string", "TString", "char*":
+	case "string", "TString", "char*",
+		"std::string",
+		"std::string&",
+		"std::string*",
+		"std::string const",
+		"std::string const&",
+		"std::string const*":
 		return true
 	}
 	c := true
@@ -1175,6 +1434,23 @@ func (cid *cxxgo_id) is_string_like() bool {
 	switch n {
 	case "string", "std::string", "TString", "char*":
 		return true
+	}
+	return false
+}
+
+func (cid *cxxgo_id) is_pointer_like() bool {
+	iid := cid.id
+	for {
+		switch id := iid.(type) {
+		case *cxxtypes.PtrType, *cxxtypes.RefType:
+			return true
+		case *cxxtypes.TypedefType:
+			iid = id.UnderlyingType().(cxxtypes.Id)
+		case *cxxtypes.CvrQualType:
+			iid = cxxtypes.IdByName(id.Type).(cxxtypes.Id)
+		default:
+			return false
+		}
 	}
 	return false
 }
@@ -1230,6 +1506,21 @@ func (p *plugin) new_cxxgo_ovfct(ovfct *cxxtypes.OverloadFunctionSet) cxxgo_over
 			// discard if class is abstract...
 			scope_id, ok := cxxtypes.IdByName(fct.BaseId.Scope).(cxxtypes.Type)
 			if ok && cxxtypes.IsAbstractType(scope_id) {
+				continue
+			}
+		}
+		if fct.IsMethod() && fct.IsConst() {
+			// discard if there is a non-private non-const version
+			discard := false
+			for ii, _ := range ovfct.Fcts {
+				ff := ovfct.Function(ii)
+				if !ff.IsPrivate() && !ff.IsConst() && 
+					ff.BaseId.Name == fct.BaseId.Name {
+					discard = true
+					break
+				}
+			}
+			if discard {
 				continue
 			}
 		}
@@ -1344,7 +1635,7 @@ func (f *cxxgo_function) cgo_prototype() string {
 	s := []string{}
 	s = append(s,
 		"void ",
-		f.cgoname,
+		strings.Replace(f.cgoname, "C.", "", 1),
 		"(",
 	)
 
@@ -1454,6 +1745,8 @@ func gen_go_name_from_id(id cxxtypes.Id) string {
 		return cxx2go_typename(n)
 	}
 
+	n = g_cxxgo_trans.Replace(n)
+
 	switch id := id.(type) {
 
 	case *cxxtypes.Function:
@@ -1510,57 +1803,7 @@ func gen_go_name_from_id(id cxxtypes.Id) string {
 	case *cxxtypes.OverloadFunctionSet:
 		iid := id.Function(0)
 		n = gen_go_name_from_id(iid)
-		/*
-			cls_id := cxxtypes.IdByName(iid.BaseId.Scope)
-			cls_name := gen_go_name_from_id(cls_id)
-			if iid.IsDestructor() {
-				n = "Delete" + cls_name // strings.Title(iid.IdName())[1:]
-			} else if iid.IsOperator() {
-				switch iid.IdName() {
-				case "operator+":
-					n = "Add_op"
-				case "operator+=":
-					n = "IAdd_op"
-				case "operator-":
-					n = "Sub_op"
-				case "operator-=":
-					n = "ISub_op"
-				case "operator*":
-					n = "Mul_op"
-				case "operator*=":
-					n = "IMul_op"
-				case "operator/":
-					n = "Div_op"
-				case "operator/=":
-					n = "IDiv_op"
-				case "operator=":
-					n = "Assign_op"
-				case "operator==":
-					n = "Eq_op"
-				case "operator()":
-					n = "Call_op"
-				case "operator->":
-					n = "Arrow_op"
-				case "operator[]":
-					n = "At_op"
-				case "operator++":
-					n = "Inc_op"
-				case "operator--":
-					n = "Dec_op"
-				default:
-					panic(fmt.Sprintf("unknown operator [%s] [scoped=%s]",
-						iid.IdName(),
-						iid.IdScopedName()))
-				}
-			} else if iid.IsConverter() {
 
-				n = "CnvTo_" + iid.IdName()[len("operator "):]
-			} else if iid.IsConstructor() || iid.IsCopyConstructor() {
-				n = "New" + cls_name //strings.Title(iid.IdName())
-			} else {
-				n = strings.Title(iid.IdName())
-			}
-		*/
 	case *cxxtypes.Member:
 		iid := cxxtypes.IdByName(id.Type)
 		return gen_go_name_from_id(iid)
@@ -1608,37 +1851,55 @@ func gen_cgo_name_from_id(pkgname string, id cxxtypes.Id) string {
 
 	// special cases
 	if _, ok := _cxx2cgo_typemap[n]; ok {
-		return cxx2cgo_typename(n) // FIXME
+		return "C."+cxx2cgo_typename(n) // FIXME
 	}
 
 	switch id := id.(type) {
 
 	case *cxxtypes.FundamentalType:
-		n = id.IdName()
+		n = "C."+id.IdName()
 
 	case *cxxtypes.Function:
-		n = fmt.Sprintf("_gocxx_fct_%s_%s", pkgname, get_iid_str(id))
+		n = fmt.Sprintf("C._gocxx_fct_%s_%s", pkgname, get_iid_str(id))
 
 	case *cxxtypes.OverloadFunctionSet:
-		n = fmt.Sprintf("_gocxx_fct_%s_%s", pkgname, get_iid_str(id))
+		n = fmt.Sprintf("C._gocxx_fct_%s_%s", pkgname, get_iid_str(id))
 
 	case *cxxtypes.Member:
 		iid := cxxtypes.IdByName(id.Type)
 		n = gen_cgo_name_from_id(pkgname, iid)
 
 	case *cxxtypes.ClassType:
-		n = "_gocxx_voidptr"
+		n = "C._gocxx_voidptr"
+
+	case *cxxtypes.StructType:
+		n = "C._gocxx_voidptr"
 
 	case *cxxtypes.PtrType:
-		n = "_gocxx_voidptr"
+		switch uid := cxxtypes.UnqualifiedType(id.UnderlyingType()).(type) {
+		case *cxxtypes.FundamentalType:
+			n = "" + gen_cgo_name_from_id(pkgname, cxxtypes.IdByName(uid.TypeName()))
+		default:
+			n = fmt.Sprintf("C._gocxx_ptr_%s_%s", pkgname, get_iid_str(id))
+		}
+		//n = "_gocxx_voidptr"
 		//return "*" + gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
 
 	case *cxxtypes.RefType:
-		n = "_gocxx_voidptr"
+		switch uid := cxxtypes.UnqualifiedType(id.UnderlyingType()).(type) {
+		case *cxxtypes.FundamentalType:
+			n = ""+gen_cgo_name_from_id(pkgname, cxxtypes.IdByName(uid.TypeName()))
+		default:
+			n = fmt.Sprintf("C._gocxx_ref_%s_%s", pkgname, get_iid_str(id))
+		}
+		//n = "_gocxx_voidptr"
 		//return gen_go_name_from_id(id.UnderlyingType().(cxxtypes.Id))
 
 	case *cxxtypes.CvrQualType:
 		n = gen_cgo_name_from_id(pkgname, cxxtypes.IdByName(id.Type))
+
+	case *cxxtypes.TypedefType:
+		n = fmt.Sprintf("C._gocxx_typedef_%s_%s", pkgname, get_iid_str(id))
 
 	default:
 		err := fmt.Errorf("unhandled identifier [%v]", id)
@@ -1772,16 +2033,32 @@ func fctset_need_dispatch(ovfct *cxxtypes.OverloadFunctionSet) bool {
 				continue
 			}
 		}
+		if f.IsMethod() && f.IsConst() {
+			// discard if there is the non-const version
+			discard := false
+			for ii, _ := range ovfct.Fcts {
+				ff := ovfct.Function(ii)
+				if !ff.IsPrivate() && !ff.IsConst() &&
+					ff.BaseId.Name == f.BaseId.Name {
+					discard = true
+					break
+				}
+			}
+			if discard {
+				continue
+			}
+		}
 		noverloads += 1 + f.NumDefaultParam()
 	}
 	return noverloads > 1
 }
 
-func get_dependent_ids(in_ids []string, id cxxtypes.Id) (dep_ids []string) {
-	return get_dependent_ids_rec(in_ids, id, true)
+func get_dependent_ids(in_ids []string, id cxxtypes.Id) []string {
+	return get_dependent_ids_rec(in_ids, id, true, 0)
 }
 
-func get_dependent_ids_rec(in_ids []string, id cxxtypes.Id, rec bool) (dep_ids []string) {
+func get_dependent_ids_rec(in_ids []string, id cxxtypes.Id, rec bool, reclvl int) (dep_ids []string) {
+	//println("...",reclvl,id.IdScopedName())
 	dep_ids = make([]string, 0, len(in_ids))
 	for _, dep_id := range in_ids {
 		if str_is_in_slice(dep_id, dep_ids) {
@@ -1789,47 +2066,128 @@ func get_dependent_ids_rec(in_ids []string, id cxxtypes.Id, rec bool) (dep_ids [
 		}
 		dep_ids = append(dep_ids, dep_id)
 	}
-	switch id := id.(type) {
-	// case *cxxtypes.ClassType:
-	// 	err := p.wrapClass(id)
-	// 	if err != nil {
-	// 		return err
-	// 	}
 
-	// case *cxxtypes.StructType:
-	// 	err := p.wrapStruct(id)
-	// 	if err != nil {
-	// 		return err
-	// 	}
+	if str_is_in_slice(id.IdScopedName(), dep_ids) {
+		//println("...", reclvl, id.IdScopedName(), "ALREADY DONE")
+		return dep_ids
+	}
+	dep_ids = append(dep_ids, id.IdScopedName())
+
+	switch id := id.(type) {
+
+	case *cxxtypes.FundamentalType:
+		// no-op
 
 	case *cxxtypes.ClassType:
+		//println("**cls",id.IdScopedName())
 		for _, mbr := range id.Members {
 			mbr_id := cxxtypes.IdByName(mbr.Name)
+			if str_is_in_slice(mbr_id.IdScopedName(), dep_ids) {
+				continue
+			}
 			dep_ids = append(dep_ids,
-				get_dependent_ids_rec(dep_ids, mbr_id, false)...)
+				get_dependent_ids_rec(dep_ids, mbr_id, true, reclvl+1)...)
+		}
+
+		for _, base := range id.Bases {
+			if base.IsPrivate() {
+				continue
+			}
+			base_id := cxxtypes.IdByName(base.TypeBase)
+			if str_is_in_slice(base_id.IdScopedName(), dep_ids) {
+				continue
+			}
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, base_id, true, reclvl+1)...)
+		}
+
+	case *cxxtypes.StructType:
+		//println("**str",id.IdScopedName())
+		for _, mbr := range id.Members {
+			mbr_id := cxxtypes.IdByName(mbr.Name)
+			if str_is_in_slice(mbr_id.IdScopedName(), dep_ids) {
+				continue
+			}
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, mbr_id, true, reclvl+1)...)
+		}
+
+		for _, base := range id.Bases {
+			if base.IsPrivate() {
+				continue
+			}
+			base_id := cxxtypes.IdByName(base.TypeBase)
+			if str_is_in_slice(base_id.IdScopedName(), dep_ids) {
+				continue
+			}
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, base_id, true, reclvl+1)...)
 		}
 
 	case *cxxtypes.OverloadFunctionSet:
 		for _, fct := range id.Fcts {
 			for i, _ := range fct.Params {
-				arg_id := cxxtypes.IdByName(fct.Params[i].Type).IdScopedName()
-				dep_ids = append(dep_ids, arg_id)
+				arg_id := cxxtypes.IdByName(fct.Params[i].Type)
+				if str_is_in_slice(arg_id.IdScopedName(), dep_ids) {
+					continue
+				}
+				dep_ids = append(dep_ids,
+					get_dependent_ids_rec(dep_ids, arg_id, true, reclvl+1)...)
+				dep_ids = append(dep_ids, arg_id.IdScopedName())
 			}
 			if fct.Ret != "" && fct.Ret != "void" {
-				ret_id := cxxtypes.IdByName(fct.Ret).IdScopedName()
-				dep_ids = append(dep_ids, ret_id)
+				ret_id := cxxtypes.IdByName(fct.Ret)
+				if str_is_in_slice(ret_id.IdScopedName(), dep_ids) {
+					continue
+				}
+				dep_ids = append(dep_ids,
+					get_dependent_ids_rec(dep_ids, ret_id, true, reclvl+1)...)
+				dep_ids = append(dep_ids, ret_id.IdScopedName())
 			}
+		}
+	case *cxxtypes.CvrQualType:
+		//println("**cvr",id.IdScopedName(),"-->",id.Type)
+		tt := cxxtypes.IdByName(id.Type)
+		if !str_is_in_slice(tt.IdScopedName(), dep_ids) {
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, tt, true, reclvl+1)...)
+			
+		}
+
+	case *cxxtypes.RefType:
+		//println("**ref",id.IdScopedName(),"-->",id.Type)
+		tt := cxxtypes.IdByName(id.Type)
+		if !str_is_in_slice(tt.IdScopedName(), dep_ids) {
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, tt, true, reclvl+1)...)
+		}
+
+	case *cxxtypes.PtrType:
+		//println("**ptr",id.IdScopedName(),"-->",id.Type)
+		tt := cxxtypes.IdByName(id.Type)
+		if !str_is_in_slice(tt.IdScopedName(), dep_ids) {
+			dep_ids = append(dep_ids,
+				get_dependent_ids_rec(dep_ids, tt, true, reclvl+1)...)
 		}
 	}
-	// recurse...
-	if rec {
-		for _, dep_id := range dep_ids {
-			if str_is_in_slice(dep_id, in_ids) {
-				continue
-			}
-			iid := cxxtypes.IdByName(dep_id)
-			dep_ids = append(dep_ids, get_dependent_ids_rec(dep_ids, iid, false)...)
-		}
+	// // recurse...
+	// if rec && reclvl>100000{
+	// 	for _, dep_id := range dep_ids {
+	// 		if str_is_in_slice(dep_id, in_ids) {
+	// 			continue
+	// 		}
+	// 		iid := cxxtypes.IdByName(dep_id)
+	// 		dep_ids = append(dep_ids, get_dependent_ids_rec(dep_ids, iid, false, reclvl+1)...)
+	// 	}
+	// }
+
+	set_ids := map[string]struct{}{}
+	for _, v := range dep_ids {
+		set_ids[v] = struct{}{}
+	}
+	dep_ids = make([]string, 0, len(set_ids))
+	for k, _ := range set_ids {
+		dep_ids = append(dep_ids, k)
 	}
 	return dep_ids
 }
@@ -1902,6 +2260,14 @@ import "unsafe"
 // dummy function which uses unsafe
 func _gocxx_free_ptr(ptr unsafe.Pointer) {
  C.free(ptr)
+}
+
+// _gocxx_int2bool converts a C.int into a Go bool
+func _gocxx_int2bool(i C.int) bool {
+  if i != 0 {
+    return true
+  }
+  return false
 }
 `
 
@@ -1982,6 +2348,14 @@ extern "C" {
 #endif
 
 typedef void* _gocxx_voidptr;
+/*typedef void  _gocxx_void;*/
+
+/* consolidate bool in a C/C++ mized environment */
+#ifdef __cplusplus
+typedef bool _gocxx_bool_t;
+#else
+typedef int _gocxx_bool_t;
+#endif
 `
 
 var _go_footer string = `
@@ -2003,7 +2377,8 @@ var _hdr_footer string = `
 `
 
 var _cxx2cgo_typemap = map[string]string{
-	"void":     "void",
+	"void":     "_gocxx_voidptr",
+	"bool":     "int",//_gocxx_bool_t", FIXME ?
 	"uint64_t": "uint64_t",
 	"uint32_t": "uint32_t",
 	"uint16_t": "uint16_t",
@@ -2016,7 +2391,7 @@ var _cxx2cgo_typemap = map[string]string{
 }
 
 var _cxx2go_typemap = map[string]string{
-	"void":     "",
+	"void":     "byte", //FIXME
 	"uint64_t": "uint64",
 	"uint32_t": "uint32",
 	"uint16_t": "uint16",

@@ -53,7 +53,8 @@ function compile_lib() {
 function gen_cxxdict() {
     pushd ${GOCXXDICTTESTROOT}
 
-    ${GCCXML} -fxml=out.xml \
+    ${GCCXML} \
+        -fxml=out.xml \
         ${GOCXXDICTROOT}/mylib.hh \
         || return 1
 
