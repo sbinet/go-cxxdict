@@ -360,12 +360,12 @@ type %s interface {
 			bid := get_cxxgo_id(p.gen.Fd.Package, base_id)
 			go_base_cls_iface_name := bid.goname
 			fmter(bufs["go_iface"],
-				"\tGet%s() %s\n",
+				"\tGocxxGet%s() %s\n",
 				go_base_cls_iface_name,
 				go_base_cls_iface_name)
 
 			fmter(bufs["go_impl"],
-				"\nfunc (p %s) Get%s() %s {\n",
+				"\nfunc (p %s) GocxxGet%s() %s {\n",
 				go_cls_impl_name,
 				go_base_cls_iface_name,
 				go_base_cls_iface_name,
