@@ -25,8 +25,11 @@ func main() {
 	fmt.Printf("d1.Pure_virtual_method(\"you\")...\n")
 	d1.Pure_virtual_method("you")
 
+	var b mylib.Base
+
+	fmt.Printf("\n/// test implicit conversion to base-class' interface\n")
 	fmt.Printf("call d1 methods via mylib.Base...\n")
-	var b mylib.Base = d1
+	b = d1
 
 	fmt.Printf("b.Do_hello(\"you\")...\n")
 	b.Do_hello("you")
@@ -39,6 +42,7 @@ func main() {
 
 	fmt.Printf("call d1 methods via mylib.Base...[done]\n")
 
+	fmt.Printf("\n/// now, re-test but using an explicit call to GocxxGet<base-class>()\n")
 	fmt.Printf("call d1 methods via mylib.Base...\n")
 	b = d1.GocxxGetBase()
 
