@@ -247,6 +247,13 @@ func (t *Function) IsOperator() bool {
 	return (t.Spec & TS_Operator) != 0
 }
 
+func (t *Function) IsAssignOperator() bool {
+	if !t.IsOperator() {
+		return false
+	}
+	return strings.HasSuffix(t.BaseId.Name, "operator=")
+}
+
 func (t *Function) IsMethod() bool {
 	return (t.Spec & TS_Method) != 0
 }
@@ -397,9 +404,37 @@ func add_id(id Id) Id {
 		o := g_ids[n].(*OverloadFunctionSet)
 		o.Fcts = append(o.Fcts, id)
 		//println(":: added [" + id.Signature() + "] to overload-fct-set...")
+	case *TypedefType:
+		if _, exists := g_ids[n]; exists {
+			// don't panic.
+			// we just ignore this typedef as it is most probably something like
+			// typedef struct Foo { ... } Foo;
+			// or:
+			// typedef union Foo {...} Foo;
+		} else {
+			g_ids[n] = id
+		}
+	case *CvrQualType:
+		// ignore duplicate
+		if _, exists := g_ids[n]; exists {
+		} else {
+			g_ids[n] = id
+		}
+
 	default:
 		if _, exists := g_ids[n]; exists {
-			err := fmt.Errorf("cxxtypes: identifier [%s] already in id-registry (type=%T)", n, g_ids[n])
+			// don't panic just yet.
+			// if the already existing id is a typedef, replace it with this one
+			// as it may be a case of
+			// typedef struct Foo { ... } Foo;
+			// or:
+			// typedef union Foo {...} Foo;
+			switch g_ids[n].(type) {
+			case *TypedefType:
+				g_ids[n] = id
+				return g_ids[n]
+			}
+			err := fmt.Errorf("cxxtypes: identifier [%s, type=%T] already in id-registry (type=%T)", n, id, g_ids[n])
 			panic(err)
 		}
 		g_ids[n] = id

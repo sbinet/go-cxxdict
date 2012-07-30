@@ -252,6 +252,19 @@ func IsAbstractType(t Type) bool {
 	return (t.Specifiers() & TS_Abstract) != 0
 }
 
+// UnqualifiedType returns the underlying unqualified type.
+func UnqualifiedType(t Type) Type {
+	for {
+		switch tt := t.(type) {
+		case *CvrQualType:
+			t = tt.get_type()
+		default:
+			return tt
+		}
+	}
+	panic("unreachable")
+}
+
 // BaseType is the common implementation of most types.
 // It is embedded in other, public struct types, but always
 // with a unique tag like `cxxtypes:"array"` or `cxxtypes:"ptr"`
@@ -1178,6 +1191,13 @@ func (t *FunctionType) IsCopyConstructor() bool {
 
 func (t *FunctionType) IsOperator() bool {
 	return (t.BaseType.Spec & TS_Operator) != 0
+}
+
+func (t *FunctionType) IsAssignOperator() bool {
+	if !t.IsOperator() {
+		return false
+	}
+	return strings.HasSuffix(t.BaseType.Name, "operator=")
 }
 
 func (t *FunctionType) IsMethod() bool {
