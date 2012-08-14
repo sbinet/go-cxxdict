@@ -1,10 +1,18 @@
 #include "mylib.hh"
+#include <stdio.h>
 
 Class::Class()
 {}
 
 Class::~Class()
 {}
+
+int* 
+Class::n_ints() 
+{ 
+  m_n_ints = m_ints.size(); 
+  return &m_n_ints; 
+}
 
 const std::vector<int>&
 Class::ints() const

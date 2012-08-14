@@ -5,6 +5,8 @@ c.Nbr_ints()= 0
 c.Add(42)...
 c.Nbr_ints()= ?
 c.Nbr_ints()= 1
+c.N_ints()= ?
+c.N_ints()= 1
 c.Ints().Size()= ?
 c.Ints().Size()= 1
 c.Nbr_doubles()= ?

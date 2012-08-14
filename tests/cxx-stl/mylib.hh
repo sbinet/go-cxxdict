@@ -7,6 +7,7 @@
 
 class Class
 {
+  int m_n_ints;
   std::vector<int> m_ints;
   std::vector<double> m_doubles;
 
@@ -21,6 +22,8 @@ public:
 
   int nbr_ints() const { return m_ints.size(); }
   int nbr_doubles() const { return m_doubles.size(); }
+
+  int* n_ints();
 
   void add(int i);
   void add(double d);
