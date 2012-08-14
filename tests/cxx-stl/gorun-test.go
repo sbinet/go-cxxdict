@@ -21,6 +21,9 @@ func main() {
 	fmt.Printf("c.Nbr_ints()= ?\n")
 	fmt.Printf("c.Nbr_ints()= %v\n", c.Nbr_ints())
 
+	fmt.Printf("c.Ints().Size()= ?\n")
+	fmt.Printf("c.Ints().Size()= %v\n", c.Ints().Size())
+
 	fmt.Printf("c.Nbr_doubles()= ?\n")
 	fmt.Printf("c.Nbr_doubles()= %v\n", c.Nbr_doubles())
 
