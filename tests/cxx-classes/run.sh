@@ -1,15 +1,9 @@
 #!/bin/sh
 
-readlink=`which greadlink`
-sc=$?
-if [ $sc -ne 0 ]; then
-    readlink=`which readlink`
-    sc=$?
-fi
-
-if [ $sc -ne 0 ]; then
+readlink=$((type -p greadlink readlink) | grep -v "not found" | head -1 | cut -d ' ' -f 3 )
+if [ -z $readlink ]; then
     echo "** could not find 'readlink'"
-    exit $sc
+    exit 1
 fi
 
 # Absolute path to this script, e.g. /home/user/bin/foo.sh
